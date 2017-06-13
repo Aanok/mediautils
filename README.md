@@ -1,5 +1,5 @@
 # mediautils
-### Requirements for h265 and flac2mp3:
+### Requirements for h265 and flac2opus:
 * ffmpeg
 
 ### Requirements for cuesplit:
