@@ -1,4 +1,81 @@
 #!/bin/bash
+# POSIX
+
+# conveniency function printing help/usage information
+usage() {
+	echo "Usage:"
+	echo " $0 [ --outdir <output directory> | -o <output directory> ] [ --mail <email address> | -m <email address> ] [ <input directory> ]"
+	echo " $0 [ --replace | -r ] [ --mail <email address> | -m <email address> ] [ <input directory> ]"
+	echo " $0 [ --help | -h ]"
+}
+
+# convenciency function printing an error message for when --outdir and --replace are both set
+outdir_replace_error() {
+	printf 'ERROR: output-directory mode and replace-mode are incompatible.\n' >&2
+}
+
+# convenciency function printing an error message when an options requries a non-empty argument following but there isn't one
+missing_arg_error() {
+	printf 'ERROR: "%s" requires a non-empty option argument.\n' "$1" >&2
+}
+
+
+
+##### PRELIMINARIES #####
+
+# parse command-line options
+while :; do
+	case $1 in
+		-h|--help)
+		# print help
+			usage
+			exit
+			;;
+		-o|--outdir)
+		# set outdir
+			if [ -n "$REPLACE" ]; then
+				outdir_replace_error
+				exit 1
+			fi
+			if [ -n "$2" ]; then
+				OUTDIR="$2"
+				shift
+			else
+				missing_arg_error "--outdir"
+				exit 1
+			fi
+			;;
+		-r|--replace)
+		# program will replace input files with output instead of putting them in a separate folder
+			if [ -n "$OUTDIR" ]; then
+				outdir_replace_error
+				exit 1
+			fi
+			REPLACE=1
+			;;
+		-m|--mail)
+		# program will send email notification
+			if [ -n "$2" ]; then
+				EMAIL="$2"
+				shift
+			else
+				missing_arg_error "--mail"
+				exit 1
+			fi
+			;;
+		-?*)
+		# unrecognized
+			printf 'ERROR: Unkown option "%s"\n' "$1" >&2
+			usage
+			exit 1
+			;;
+		*)
+		# end of options, leave case statement
+			break
+			;;
+	esac
+	shift
+done
 
 # read file search root directory if provided, default to PWD otherwise
 if [ -z "$1" ]; then
@@ -7,18 +84,33 @@ else
 	INDIR="$1"
 fi
 
-# create output directory
-OUTDIR="$INDIR/opus"
-if [ ! -d "$OUTDIR" ]; then mkdir "$OUTDIR"; fi
+# figure out OUTDIR and prepare it in the filesystem if necessary
+if [ -n "$REPLACE" ]; then
+	# running in replace mode
+	OUTDIR="$INDIR"
+else
+	# running in output-drectory mode
+	# default to $INDIR/opus if --outdir wasn't set
+	if [ -z "$OUTDIR" ]; then OUTDIR="$INDIR/opus"; fi
+	# create the output directory if it doesn't exist
+	if [ ! -d "$OUTDIR" ]; then mkdir "$OUTDIR"; fi
+fi
+
+
+
+
+##### WORK #####
 
 # enable globstar for recursive file search
 shopt -s globstar
+# enable extglob for better pattern matching
+shopt -s extglob
 
 # compute list of input and output
 declare -a INPUT
 declare -a OUTPUT
 i=0
-for x in "$INDIR"/**/*.flac; do
+for x in "$INDIR"/**/*.@(flac|mp3); do
 	INPUT[$i]="$x"
 	y="${x##$INDIR/}"
 	y="${y%.*}.ogg"
@@ -26,40 +118,49 @@ for x in "$INDIR"/**/*.flac; do
 	((i++))
 done
 
+# we'll keep track of which file we manage to reencode and which fail
+successes=( )
+failures=( )
 # execute actual reencoding operations
 i=0
-while [ ! -z "${INPUT[$i]}" ]; do
+while [ -n  "${INPUT[$i]}" ]; do
 	# check for output subdirectory, create it if it doesn't exist
 	# output subdirectory is basically the path of the output file, minus its basename
 	targetdir="$OUTDIR/${OUTPUT[$i]%%/*}"
 	if [ ! -d "$targetdir" ]; then mkdir "$targetdir"; fi
-	ffmpeg -i "${INPUT[$i]}" -c:a libopus -vbr on -compression_level 10 -b:a 128000 "$OUTDIR/${OUTPUT[$i]}"
+	if ffmpeg -i "${INPUT[$i]}" -map 0:a -c:a libopus -vbr on -compression_level 10 -b:a 128000 "$OUTDIR/${OUTPUT[$i]}"; then
+		# ffmpeg exited with success, file should have been reencoded
+		successes=( "${successes[@]}" "${OUTPUT[$i]}" )
+
+		# IMPORTANT! if running in replace mode, delete the input file
+		if [ -n "$REPLACE" ]; then rm "${INPUT[$i]}"; fi
+	else
+		# there was a failure of some kind
+		failures=( "${failures[@]}" "${INPUT[$i]}" )
+	fi
 	((i++))
 done
+echo 'done'
+exit
+
+
+
+##### EMAIL NOTIFICATION #####
+
+if [ -z "$EMAIL" ];
+	# email notification not requested, exit peacefully
+	exit
+fi
 
 # setup start of body of mail notification
 if [ -f mailbody ]; then rm mailbody; fi
 echo "Reencoding $INDIR in Opus: done." >> mailbody
 
-# look, starting from scratch, that each input file has an output equivalent
-successes=( )
-failures=( )
-i=0
-while [ ! -z "${INPUT[$i]}" ]; do
-	if [ -f "$OUTDIR"/"${OUTPUT[$i]}" ]; then
-		# the file was reencoded
-		successes=( "${successes[@]}" "${OUTPUT[$i]}" )
-	else
-		# the file was not reencoded
-		failures=( "${failures[@]}" "${INPUT[$i]}" )
-	fi
-done
-
 # complete body of mail notification
 if [ ${#successes[@]} = 0 ]; then
-	echo 'No file was reencoded.' >> mailbody
+	echo 'No file was successfully reencoded.' >> mailbody
 else
-	echo "The following files were generated under directory $OUTDIR:" >> mailbody
+	echo "The following files were successfully generated under directory $OUTDIR:" >> mailbody
 	printf '%s\n' "${successes[@]}" >> mailbody
 fi
 echo >> mailbody
@@ -67,12 +168,12 @@ echo >> mailbody
 if [ ${#failuress[@]} = 0 ]; then
         echo 'All input files were processed.' >> mailbody
 else
-        echo 'The following files could not be processed:' >> mailbody
+        echo 'There was an error processing the following files:' >> mailbody
         printf '%s\n' "${failures[@]}" >> mailbody
 fi
 
 # send email notification
-cat mailbody | mail -s 'Reencoding ${INDIR##*/} in Opus' fabrizio07@gmail.com
+cat mailbody | mail -s 'Reencoding ${INDIR##*/} in Opus' "$EMAIL"
 
 # cleanup
 rm mailbody
