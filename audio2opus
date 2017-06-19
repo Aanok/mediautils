@@ -113,7 +113,7 @@ i=0
 for x in "$INDIR"/**/*.@(flac|mp3|wav); do
 	INPUT[$i]="$x"
 	y="${x##$INDIR/}"
-	y="${y%.*}.ogg"
+	y="${y%.*}.opus"
 	OUTPUT[$i]="$y"
 	((i++))
 done
