@@ -139,8 +139,7 @@ while [ -n  "${INPUT[$i]}" ]; do
 	# output subdirectory is basically the path of the output file, minus its basename
 	targetdir="$OUTDIR/${OUTPUT[$i]%%/*}"
 	if [ ! -d "$targetdir" ]; then mkdir "$targetdir"; fi
-	if ffmpeg -n -i "${INPUT[$i]}" -map 0:a -c:a libopus -vbr on -compression_level 10 -b:a 128000 
-"$OUTDIR/${OUTPUT[$i]}"; then
+	if ffmpeg -n -i "${INPUT[$i]}" -map 0:a -c:a libopus -vbr on -compression_level 10 -b:a 128000 "$OUTDIR/${OUTPUT[$i]}"; then
 		# ffmpeg exited with success, file should have been reencoded
 		successes=( "${successes[@]}" "${OUTPUT[$i]}" )
 
