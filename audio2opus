@@ -4,8 +4,12 @@
 # conveniency function printing help/usage information
 usage() {
 	echo "Usage:"
-	echo " $0 [ --outdir <output directory> | -o <output directory> ] [ --mail <email address> | -m <email address> ] [ <input directory> ]"
-	echo " $0 [ --replace | -r ] [ --mail <email address> | -m <email address> ] [ <input directory> ]"
+	echo " $0 [ --outdir <output directory> | -o <output directory> ] [ --mail <email address> | -m <email address> ] [ 
+--if-worthwhile | -w ] [ 
+<input directory> ]"
+	echo " $0 [ --replace | -r ] [ --mail <email address> | -m <email address> ] [ --if-worthwhile | -w ] [ <input 
+directory> 
+]"
 	echo " $0 [ --help | -h ]"
 }
 
@@ -52,6 +56,10 @@ while :; do
 				exit 1
 			fi
 			REPLACE=1
+			;;
+		-w|--if-worthwhile)
+		# program will process files only if their (average) birate is above 128kbps
+			IFWORTHWHILE=1
 			;;
 		-m|--mail)
 		# program will send email notification
@@ -111,11 +119,14 @@ declare -a INPUT
 declare -a OUTPUT
 i=0
 for x in "$INDIR"/**/*.@(flac|mp3|wav); do
-	INPUT[$i]="$x"
-	y="${x##$INDIR/}"
-	y="${y%.*}.opus"
-	OUTPUT[$i]="$y"
-	((i++))
+	# only accept file candidate if worthwhile
+	if [[ -z $IFWORTHWHILE ]] || [[ $(ffprobe "$x" 2>&1 | grep Audio: | sed 's/.*, \([0-9]*\) kb\/s.*/\1/') > 128 ]]; then
+		INPUT[$i]="$x"
+		y="${x##$INDIR/}"
+		y="${y%.*}.opus"
+		OUTPUT[$i]="$y"
+		((i++))
+	fi
 done
 
 # we'll keep track of which file we manage to reencode and which fail
@@ -128,7 +139,8 @@ while [ -n  "${INPUT[$i]}" ]; do
 	# output subdirectory is basically the path of the output file, minus its basename
 	targetdir="$OUTDIR/${OUTPUT[$i]%%/*}"
 	if [ ! -d "$targetdir" ]; then mkdir "$targetdir"; fi
-	if ffmpeg -i "${INPUT[$i]}" -map 0:a -c:a libopus -vbr on -compression_level 10 -b:a 128000 "$OUTDIR/${OUTPUT[$i]}"; then
+	if ffmpeg -i "${INPUT[$i]}" -map 0:a -c:a libopus -vbr on -compression_level 10 -b:a 128000 
+"$OUTDIR/${OUTPUT[$i]}"; then
 		# ffmpeg exited with success, file should have been reencoded
 		successes=( "${successes[@]}" "${OUTPUT[$i]}" )
 
