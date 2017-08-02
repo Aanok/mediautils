@@ -2,7 +2,7 @@
 
 if [ "$#" -ne 2 ]
 then
-	echo 'Usage: unpack CUEFILE DATAFILE'
+	echo 'Usage: cuesplit CUEFILE DATAFILE'
 	exit
 fi
 
@@ -16,9 +16,9 @@ cuetag "$1" flac/*.flac
 # reencode in opus
 mkdir opus
 cd flac
-for x in *.flac
+for x in flac/*.flac
 do
-	ffmpeg -i "$x" -c:a libopus -vbr on -compression_level 10 -b:a 128000 "../opus/${x%.*}.ogg"
+	ffmpeg -i "$x" -c:a libopus -vbr on -compression_level 10 -b:a 128000 "opus/${x%.*}.opus"
 done
 cd ..
 
