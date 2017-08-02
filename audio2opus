@@ -4,12 +4,8 @@
 # conveniency function printing help/usage information
 usage() {
 	echo "Usage:"
-	echo " $0 [ --outdir <output directory> | -o <output directory> ] [ --mail <email address> | -m <email address> ] [ 
---if-worthwhile | -w ] [ 
-<input directory> ]"
-	echo " $0 [ --replace | -r ] [ --mail <email address> | -m <email address> ] [ --if-worthwhile | -w ] [ <input 
-directory> 
-]"
+	echo " $0 [ --outdir <output directory> | -o <output directory> ] [ --mail <email address> | -m <email address> ] [ --if-worthwhile | -w ] [ <input directory> ]"
+	echo " $0 [ --replace | -r ] [ --mail <email address> | -m <email address> ] [ --if-worthwhile | -w ] [ <input directory> ]"
 	echo " $0 [ --help | -h ]"
 }
 
@@ -137,7 +133,7 @@ i=0
 while [ -n  "${INPUT[$i]}" ]; do
 	# check for output subdirectory, create it if it doesn't exist
 	# output subdirectory is basically the path of the output file, minus its basename
-	targetdir="$OUTDIR/${OUTPUT[$i]%%/*}"
+  targetdir="$(dirname ${OUTPUT[$i]})"
 	if [ ! -d "$targetdir" ]; then mkdir "$targetdir"; fi
 	if ffmpeg -n -i "${INPUT[$i]}" -map 0:a -c:a libopus -vbr on -compression_level 10 -b:a 128000 "$OUTDIR/${OUTPUT[$i]}"; then
 		# ffmpeg exited with success, file should have been reencoded
