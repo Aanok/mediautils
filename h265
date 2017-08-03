@@ -9,6 +9,116 @@
 # to set all audio streams to 2 channels: '-ac 2' (note this will just copy over FL and FR channels without any mixing)
 # to convert 5.1 sound to stereo for all audio streams with good volume levels: '-af "pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR"'
 
+
+##### NB: ffmpeg was programmed by a herd of baboons, so tty options have to be passed as an array instead of a string
+
+
+# conveniency function printing help/usage information
+usage() {
+  echo "Usage:"
+  echo " $0 [ --map-args <stream mapping options> ] [ --opus ] [ --downmix ] [ --outdir <output directory> ] [ --metadata-args <metadata labelling options> ] [ --keep-size ]"
+  echo " $0 --help | -h"
+}
+
+# convenciency function printing an error message when an options requries a non-empty argument following but there isn't one
+missing_arg_error() {
+	printf 'ERROR: "%s" requires a non-empty option argument.\n' "$1" >&2
+}
+  
+
+##### PRELIMINARIES #####
+
+# parse command-line options
+while :; do
+  case "$1" in
+    -h|--help)
+    # print usage information
+      usage
+      exit
+      ;;
+    --map-args)
+    # set stream mapping
+      if [ -n "$2" ]; then
+        MAPARGS="$2"
+        shift
+      else
+        missing_arg_error "--map-args"
+        exit 1
+      fi
+      ;;
+    --opus)
+    # set audio conversion to Opus
+      AUDIOCODEC=(libopus -vbr on -compression_level 10 -b:a 128000)
+      ;;
+    --downmix-stereo)
+    # set downmix of 5.1 surround channels to stereo
+      DOWNMIX=(-ac 2 -af 'pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR')
+      ;;
+    --outdir)
+    # set output directory
+      if [ -n "$2" ]; then
+        OUTDIR="$2"
+        shift
+      else
+        missing_arg_error "--outdir"
+        exit 1
+      fi
+      ;;
+    --metadata-args)
+    # set metadata labelling
+      if [-n "$2" ]; then
+        METADATAARGS="$2"
+        shift
+      else
+        mising_arg_error "--metadata-args"
+        exit 1
+      fi
+      ;;
+    --keep-size)
+    # set if keeping source file dimensions
+      SIZE=1
+      ;;
+    -?*)
+		# unrecognized
+			printf 'ERROR: Unkown option "%s"\n' "$1" >&2
+			usage
+			exit 1
+			;;
+		*)
+		# end of options, leave case statement
+			break
+			;;
+  esac
+  shift
+done
+
+# if --outdir was not passed, use default
+if [ -z "$OUTDIR" ]; then
+  # default output directory is called 'reencode'
+  OUTDIR=reencode
+fi
+
+# if --map-args was not passed, use default
+if [ -z "$MAPARGS" ]; then
+  # default is to grab all streams
+  MAPARGS=('-map' '0')
+fi
+
+# if --opus was not passed, use default
+if [ -z "$AUDIOCODEC" ]; then
+  # default is to copy the audio streams over
+  AUDIOCODEC="copy"
+fi
+
+# if --keep-size was not passed, use default
+if [ -z "$METADATAARGS" ]; then
+  # default is 720p
+  SIZE=('-s' 'hd720')
+else
+  # to keep the original size, we don't pass anything to ffmpeg
+  SIZE=( )
+fi
+
 # figure out a task name
 shopt -s extglob
 if [[ "$PWD" == */[sS]@(eason\ +([0-9])|pecial?(s))* ]]; then
@@ -17,54 +127,67 @@ if [[ "$PWD" == */[sS]@(eason\ +([0-9])|pecial?(s))* ]]; then
 else
 	taskname="${PWD##*/}"
 fi
-shopt -u extglob
+
+
+##### WORK #####
 
 # create output directory if it doesn't exist
-if [ ! -d reencode ]; then mkdir reencode; fi
+if [ ! -d "$OUTDIR" ]; then mkdir "$OUTDIR"; fi
 
-# do the actual work
-input=*.mkv
-for x in $input; do
-	ffmpeg -i "$x" \
-	-map 0 -s hd720 -pix_fmt yuv420p10 \
-	-c:v libx265 -preset ultrafast -crf 16 \
-	-c:a copy \
-	-c:s copy \
-	"./reencode/${x%.*}.mkv"
+# compute list of input and output
+declare -a INPUT
+declare -a OUTPUT
+i=0
+for x in *.@(mkv|mp4|avi); do
+  INPUT[$i]="$x"
+  OUTPUT[$i]="${x%.*}.mkv"
+  ((i++))
 done
+
+echo "input: ${INPUT[@]}"
+echo "output: ${OUTPUT[@]}"
+
+
+# we'll keep track of successes and failures
+successes=( )
+failures=( )
+# execute actual reencoding operations
+i=0
+while [ -n "${INPUT[$i]}" ]; do
+  ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" -pix_fmt yuv420p10 "${MAPARGS[@]}" "${METADATAARGS[@]}" -c:v libx265 -preset slow -crf 18 -c:a "${AUDIOCODEC[@]}" -c:s copy "${MAPARGS[@]}" "./$OUTDIR/${OUTPUT[$i]}")
+	
+  if ffmpeg "${ARGS[@]}"; then
+  # ffmpeg exited with success, file should have been reencoded
+    successes=( "${successes[@]}" "${OUTPUT[$i]}" )
+  else
+    # there was a failure of some kind
+		failures=( "${failures[@]}" "${INPUT[$i]}" )
+  fi
+  ((i++))
+done
+
+
+##### EMAIL NOTIFICATION #####
 
 # setup start of body of mail notification
 if [ -f mailbody ]; then rm mailbody; fi
 echo 'Reencoding attempt of' "$taskname" 'completed.' >> mailbody
 echo >> mailbody
 
-# look, starting from scratch, that each input file has an output equivalent
-successes=( )
-failures=( )
-for x in $input; do
-if [ -f ./reencode/"${x%.*}.mkv" ]; then
-		# the file was reencoded
-		successes=( "${successes[@]}" "${x%.*}.mkv" )
-	else
-		# the file was not reencoded
-		failures=( "${failures[@]}" "$x" )
-	fi
-done
-
 # complete body of mail notification
 if [ ${#successes[@]} = 0 ]; then
-	echo 'No file was reencoded.' >> mailbody
+	echo 'No file was successfully reencoded.' >> mailbody
 else
-	echo 'The following files were generated:' >> mailbody
+	echo "The following files were successfully generated under directory $OUTDIR:" >> mailbody
 	printf '%s\n' "${successes[@]}" >> mailbody
 fi
 echo >> mailbody
 
 if [ ${#failuress[@]} = 0 ]; then
-        echo 'All input files were processed.' >> mailbody
+  echo 'All input files were processed.' >> mailbody
 else
-        echo 'The following files could not be processed:' >> mailbody
-        printf '%s\n' "${failures[@]}" >> mailbody
+  echo 'There was an error processing the following files:' >> mailbody
+  printf '%s\n' "${failures[@]}" >> mailbody
 fi
 
 # send mail notification
