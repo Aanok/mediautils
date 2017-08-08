@@ -144,6 +144,19 @@ else
 	taskname="${PWD##*/}"
 fi
 
+# figure out if background execution
+if [[ $(ps -o stat= -p $$) == *+* ]]; then
+	# Running in foreground
+  STDINSRC='/dev/stdin'
+  STDOUTDEST='/dev/stdout'
+  STDERRDEST='/dev/stderr'
+else
+  # Running in background
+  STDINSRC='/dev/null'
+  STDOUTDEST='/dev/null'
+  STDERRDEST='ffmpeg.log'
+fi
+
 
 ##### WORK #####
 
@@ -160,9 +173,6 @@ for x in *.@(mkv|mp4|avi); do
   ((i++))
 done
 
-echo "input: ${INPUT[@]}"
-echo "output: ${OUTPUT[@]}"
-
 
 # we'll keep track of successes and failures
 successes=( )
@@ -172,7 +182,7 @@ i=0
 while [ -n "${INPUT[$i]}" ]; do
   ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" -pix_fmt yuv420p10 "${MAPARGS[@]}" "${METADATAARGS[@]}" -c:v libx265 -preset slow -crf "${CRF[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${MAPARGS[@]}" "./$OUTDIR/${OUTPUT[$i]}")
 	
-  if ffmpeg "${ARGS[@]}"; then
+  if ffmpeg "${ARGS[@]}" <$STDINSRC >$STDOUTDEST 2>$STDERRDEST; then
   # ffmpeg exited with success, file should have been reencoded
     successes=( "${successes[@]}" "${OUTPUT[$i]}" )
   else
