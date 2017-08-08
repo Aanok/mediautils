@@ -80,7 +80,7 @@ while :; do
       ;;
     --crf)
     # set CRF
-      if [-n "$2" ]; then
+      if [ -n "$2" ]; then
         CRF="$2"
         shift
       else
@@ -121,7 +121,7 @@ if [ -z "$AUDIOCODEC" ]; then
 fi
 
 # if --keep-size was not passed, use default
-if [ -z "$METADATAARGS" ]; then
+if [ -z "$SIZE" ]; then
   # default is 720p
   SIZE=('-s' 'hd720')
 else
