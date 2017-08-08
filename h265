@@ -1,5 +1,5 @@
 #!/bin/bash
-# run as 'nohup ./h265.sh &' for background execution
+# run as 'ffmpeg [...] </dev/null >/dev/null 2>/var/log/ffmpeg.log &' for background execution
 # to grab all streams from the first input file, inlcuding attachments, use '-map 0'
 # to grab all attachments from the first input file use '-map 0:t'
 # to encode in 720p use '-s hd720'
@@ -217,7 +217,7 @@ else
 fi
 
 # send mail notification
-cat mailbody | mail -s "Reencoding $taskname" fabrizio07@gmail.com
+cat mailbody | mail -s "Reencoding $taskname" fabrizio07@gmail.com >$STDOUTDEST 2>$STDERRDEST
 
 # cleanup
 rm mailbody
