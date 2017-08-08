@@ -16,7 +16,7 @@
 # conveniency function printing help/usage information
 usage() {
   echo "Usage:"
-  echo " $0 [ --map-args <stream mapping options> ] [ --opus ] [ --downmix ] [ --outdir <output directory> ] [ --metadata-args <metadata labelling options> ] [ --keep-size ]"
+  echo " $0 [ --map-args <stream mapping options> ] [ --opus ] [ --downmix ] [ --outdir <output directory> ] [ --metadata-args <metadata labelling options> ] [ --keep-size ] [ --crf <CRF> ]"
   echo " $0 --help | -h"
 }
 
@@ -78,6 +78,16 @@ while :; do
     # set if keeping source file dimensions
       SIZE=1
       ;;
+    --crf)
+    # set CRF
+      if [-n "$2" ]; then
+        CRF="$2"
+        shift
+      else
+        mising_arg_error "--crf"
+        exit 1
+      fi
+      ;;
     -?*)
 		# unrecognized
 			printf 'ERROR: Unkown option "%s"\n' "$1" >&2
@@ -119,6 +129,12 @@ else
   SIZE=( )
 fi
 
+# if --crf was not passed, use default
+if [ -z "$CRF" ]; then
+  # default is 18
+  CRF="18"
+fi
+
 # figure out a task name
 shopt -s extglob
 if [[ "$PWD" == */[sS]@(eason\ +([0-9])|pecial?(s))* ]]; then
@@ -154,7 +170,7 @@ failures=( )
 # execute actual reencoding operations
 i=0
 while [ -n "${INPUT[$i]}" ]; do
-  ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" -pix_fmt yuv420p10 "${MAPARGS[@]}" "${METADATAARGS[@]}" -c:v libx265 -preset slow -crf 18 -c:a "${AUDIOCODEC[@]}" -c:s copy "${MAPARGS[@]}" "./$OUTDIR/${OUTPUT[$i]}")
+  ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" -pix_fmt yuv420p10 "${MAPARGS[@]}" "${METADATAARGS[@]}" -c:v libx265 -preset slow -crf "${CRF[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${MAPARGS[@]}" "./$OUTDIR/${OUTPUT[$i]}")
 	
   if ffmpeg "${ARGS[@]}"; then
   # ffmpeg exited with success, file should have been reencoded
