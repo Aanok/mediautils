@@ -39,7 +39,7 @@ while :; do
     --map-args)
     # set stream mapping
       if [ -n "$2" ]; then
-        MAPARGS="$2"
+        MAPARGS=( $2 )
         shift
       else
         missing_arg_error "--map-args"
@@ -66,8 +66,8 @@ while :; do
       ;;
     --metadata-args)
     # set metadata labelling
-      if [-n "$2" ]; then
-        METADATAARGS="$2"
+      if [ -n "$2" ]; then
+        METADATAARGS=( $2 )
         shift
       else
         mising_arg_error "--metadata-args"
@@ -180,7 +180,7 @@ failures=( )
 # execute actual reencoding operations
 i=0
 while [ -n "${INPUT[$i]}" ]; do
-  ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" -pix_fmt yuv420p10 "${MAPARGS[@]}" "${METADATAARGS[@]}" -c:v libx265 -preset slow -crf "${CRF[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${MAPARGS[@]}" "./$OUTDIR/${OUTPUT[$i]}")
+  ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" -pix_fmt yuv420p10 "${MAPARGS[@]}" "${METADATAARGS[@]}" -c:v libx265 -preset slow -crf "${CRF[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${DOWNMIX[@]}" "./$OUTDIR/${OUTPUT[$i]}")
 	
   if ffmpeg "${ARGS[@]}" <$STDINSRC >$STDOUTDEST 2>$STDERRDEST; then
   # ffmpeg exited with success, file should have been reencoded
