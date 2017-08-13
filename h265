@@ -131,8 +131,8 @@ fi
 
 # if --crf was not passed, use default
 if [ -z "$CRF" ]; then
-  # default is 18
-  CRF="18"
+  # default is 20
+  CRF="20"
 fi
 
 # figure out a task name
