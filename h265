@@ -16,7 +16,8 @@
 # conveniency function printing help/usage information
 usage() {
   echo "Usage:"
-  echo " $0 [ --map-args <stream mapping options> ] [ --opus ] [ --downmix ] [ --outdir <output directory> ] [ --metadata-args <metadata labelling options> ] [ --keep-size ] [ --crf <CRF> ]"
+  echo " $0 [ --map-args <stream mapping options> ] [ --opus ] [ --downmix-stereo ] [ --outdir <output directory> ] [ 
+--metadata-args <metadata labelling options> ] [ --keep-size ] [ --crf <CRF> ]"
   echo " $0 --help | -h"
 }
 
