@@ -11,8 +11,10 @@
 * cuetools
 * flac
 * ffmpeg
+* monkeys-audio for ape/cue (from deb-multimedia repository)
 
 These are all Debian packages.
 
 ### TODO
-* Rework the interface of h265 to make it more flexible: audio reencode/copy, stream mapping etc.
+* Improve --map-args --metadata-args interface of h265
+* Have h265 automatically write/delete tags like BPS or encoder
