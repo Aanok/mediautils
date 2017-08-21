@@ -114,7 +114,7 @@ shopt -s extglob
 declare -a INPUT
 declare -a OUTPUT
 i=0
-for x in "$INDIR"/**/*.@(flac|mp3|wav); do
+for x in "$INDIR"/**/*.@(flac|mp3|wav|mpc); do
 	# only accept file candidate if worthwhile
 	if [[ -z $IFWORTHWHILE ]] || [[ $(ffprobe "$x" 2>&1 | grep Audio: | sed 's/.*, \([0-9]*\) kb\/s.*/\1/') > 128 ]]; then
 		INPUT[$i]="$x"
