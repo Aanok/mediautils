@@ -18,3 +18,4 @@ These are all Debian packages.
 ### TODO
 * Improve --map-args --metadata-args interface of h265
 * Have h265 automatically write/delete tags like BPS or encoder
+* h265, audio2opus: add a '--misc' argument to preefly pass any argument to ffmpeg.
