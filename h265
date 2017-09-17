@@ -8,6 +8,9 @@
 # if you need to reencode audio use Opus: '-c:a libopus -vbr on -compression_level 10 -b:a 128000' (64kbps per channel)
 # to set all audio streams to 2 channels: '-ac 2' (note this will just copy over FL and FR channels without any mixing)
 # to convert 5.1 sound to stereo for all audio streams with good volume levels: '-af "pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR"'
+# to resize with blackbanding, forgo the -s argument and do something like "-filter:v 
+'scale=1280:-1,pad=1280:720:(ow-iw)/2:(oh-ih)/2'" (this for 1280p width, height proportional from input; pad adds the 
+black bands)
 
 
 ##### NB: ffmpeg was programmed by a herd of baboons, so tty options have to be passed as an array instead of a string
