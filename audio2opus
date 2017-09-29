@@ -133,8 +133,9 @@ i=0
 while [ -n  "${INPUT[$i]}" ]; do
 	# check for output subdirectory, create it if it doesn't exist
 	# output subdirectory is basically the path of the output file, minus its basename
-  targetdir="$(dirname ${OUTPUT[$i]})"
-	if [ ! -d "$targetdir" ]; then mkdir "$targetdir"; fi
+  # so we match everything there is up to the last "/", or an empty string if there isn't one (i.e. the file is in the base dir)
+  targetdir="$(echo ${OUTPUT[$i]} | sed -n 's/\(^.*\)\(\/.*\)/\1/p')"
+	if [ -n "$targetdir" ] && [ ! -d "$targetdir" ]; then mkdir "$targetdir"; fi
 	if ffmpeg -n -i "${INPUT[$i]}" -map 0:a -c:a libopus -vbr on -compression_level 10 -b:a 128000 "$OUTDIR/${OUTPUT[$i]}"; then
 		# ffmpeg exited with success, file should have been reencoded
 		successes=( "${successes[@]}" "${OUTPUT[$i]}" )
