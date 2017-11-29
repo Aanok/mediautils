@@ -7,7 +7,7 @@
 # if you need to reencode audio use Opus: '-c:a libopus -vbr on -compression_level 10 -b:a 128000' (64kbps per channel)
 # to set all audio streams to 2 channels: '-ac 2' (note this will just copy over FL and FR channels without any mixing)
 # to convert 5.1 sound to stereo for all audio streams with good volume levels: '-af "pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR"'
-# to encode in 720p with blackbanding use '-vf "scale=w=1280:h=720:force_original_aspect_ratio=1,pad=1280:720:(ow-iw)/2:(oh-ih)/2"' (this for 720p output; pad adds the black bands)
+# to encode in 720p with blackbanding use '-s hd720 -aspect 16:9' (this for 720p output; aspect adds the black bands)
 
 ##### NB: ffmpeg was programmed by a herd of baboons, so tty options have to be passed as an array instead of a string
 
@@ -122,8 +122,8 @@ fi
 
 # if --keep-size was not passed, use default
 if [ -z "$SIZE" ]; then
-  # default is 720p
-  SIZE=('-vf' 'scale=w=1280:h=720:force_original_aspect_ratio=1,pad=1280:720:(ow-iw)/2:(oh-ih)/2')
+  # default is 720p, or as big as we can go within a 720p box without warping
+  SIZE=('-vf' 'scale=w=1280:h=720:force_original_aspect_ratio=decrease')
 else
   # to keep the original size, we don't pass anything to ffmpeg
   SIZE=( )
