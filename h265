@@ -122,8 +122,9 @@ fi
 
 # if --keep-size was not passed, use default
 if [ -z "$SIZE" ]; then
-  # default is 720p, or as big as we can go within a 720p box without warping; note HEVC requires even height size
-  SIZE=('-vf' 'scale=w=1280:h=-2:force_original_aspect_ratio=decrease,setsar=1')
+  # by default we enforce a 720p height, proportional width. For a 16:9 input, this will give 720p resolution.
+  # note HEVC requires even height size, hence the -2
+  SIZE=('-vf' 'scale=w=-2:h=720')
 else
   # to keep the original size, we don't pass anything to ffmpeg
   SIZE=( )
