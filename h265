@@ -15,7 +15,7 @@
 # conveniency function printing help/usage information
 usage() {
   echo "Usage:"
-  echo " $0 [ --map-args <stream mapping options> ] [ --opus ] [ --opus-bitrate <bitrate> ] [ --downmix-stereo ] [ --outdir <output directory> ] [ 
+  echo " $0 [ --map-args <stream mapping options> ] [ --opus [bitrate] ] [ --downmix-stereo ] [ --outdir <output directory> ] [ 
 --metadata-args <metadata labelling options> ] [ --keep-size ] [ --crf <CRF> ]"
   echo " $0 --help | -h"
 }
@@ -38,9 +38,6 @@ MAPARGS=('-map' '0')
 
 # AUDIO CODEC
 AUDIOCODEC="copy"
-
-# AUDIO QUALITY
-AUDIOBITRATE="128000"
 
 # VIDEO QUALITY
 CRF="20"
@@ -72,15 +69,13 @@ while :; do
     --opus)
     # set audio conversion to Opus
       AUDIOCODEC=('libopus' '-vbr' 'on' '-compression_level' '10' '-b:a')
-      ;;
-    --opus-bitrate)
-    # set bitrate for Opus streams
-      if [ -n "$2" ]; then
-        AUDIOBITRATE=( $2 )
+      # check for optional bitrate argument
+      # please note [[ instead of [, it is required for the regex comparison
+      if [[ -n "$2" && "$2" != -* ]]; then
+        AUDIOCODEC=( "${AUDIOCODEC[@]}" "$2" )
         shift
       else
-        missing_arg_error "--opus-bitrate"
-        exit 1
+        AUDIOCODEC=( "${AUDIOCODEC[@]}" "128000" )
       fi
       ;;
     --downmix-stereo)
@@ -135,13 +130,6 @@ while :; do
   shift
 done
 
-# check if --opus-bitrate was passed without --opus
-if [ "$AUDIOCODEC" == "copy" ]; then
-  # exit with error
-  printf 'ERROR: "--opus-bitrate" passed without "--opus"\n' >&2
-  exit 1
-fi
-
 
 # figure out a task name
 shopt -s extglob
@@ -188,7 +176,7 @@ failures=( )
 # execute actual reencoding operations
 i=0
 while [ -n "${INPUT[$i]}" ]; do
-  ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" -pix_fmt yuv420p10 "${MAPARGS[@]}" "${METADATAARGS[@]}" -c:v libx265 -preset slow -crf "${CRF[@]}" -c:a "${AUDIOCODEC[@]}" "${AUDIOBITRATE[@]}" -c:s copy "${DOWNMIX[@]}" "./$OUTDIR/${OUTPUT[$i]}")
+  ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" -pix_fmt yuv420p10 "${MAPARGS[@]}" "${METADATAARGS[@]}" -c:v libx265 -preset slow -crf "${CRF[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${DOWNMIX[@]}" "./$OUTDIR/${OUTPUT[$i]}")
 	
   if ffmpeg "${ARGS[@]}" <$STDINSRC >$STDOUTDEST 2>$STDERRDEST; then
   # ffmpeg exited with success, file should have been reencoded
@@ -225,7 +213,7 @@ else
 fi
 
 # send mail notification
-cat mailbody | mail -s "Reencoding $taskname" fabrizio07@gmail.com >$STDOUTDEST 2>$STDERRDEST
+cat mailbody | mail -s "Reencoding $taskname" fabrizio.baldini@protonmail.com >$STDOUTDEST 2>$STDERRDEST
 
 # cleanup
 rm mailbody
