@@ -15,7 +15,7 @@
 # conveniency function printing help/usage information
 usage() {
   echo "Usage:"
-  echo " $0 [ --map-args <stream mapping options> ] [ --opus ] [ --downmix-stereo ] [ --outdir <output directory> ] [ 
+  echo " $0 [ --map-args <stream mapping options> ] [ --opus ] [ --opus-bitrate <bitrate> ] [ --downmix-stereo ] [ --outdir <output directory> ] [ 
 --metadata-args <metadata labelling options> ] [ --keep-size ] [ --crf <CRF> ]"
   echo " $0 --help | -h"
 }
@@ -27,6 +27,29 @@ missing_arg_error() {
   
 
 ##### PRELIMINARIES #####
+
+# set defaults
+
+# OUTPUT DIRECTORY
+OUTDIR=reencode
+
+# STREAM MAPPING
+MAPARGS=('-map' '0')
+
+# AUDIO CODEC
+AUDIOCODEC="copy"
+
+# AUDIO QUALITY
+AUDIOBITRATE="128000"
+
+# VIDEO QUALITY
+CRF="20"
+
+# RESOLUTION
+# by default we enforce a 720p height, proportional width. For a 16:9 input, this will give 720p resolution.
+# note HEVC requires even height size, hence the -2
+SIZE=('-vf' 'scale=w=-2:h=720')
+
 
 # parse command-line options
 while :; do
@@ -48,7 +71,17 @@ while :; do
       ;;
     --opus)
     # set audio conversion to Opus
-      AUDIOCODEC=(libopus -vbr on -compression_level 10 -b:a 128000)
+      AUDIOCODEC=('libopus' '-vbr' 'on' '-compression_level' '10' '-b:a')
+      ;;
+    --opus-bitrate)
+    # set bitrate for Opus streams
+      if [ -n "$2" ]; then
+        AUDIOBITRATE=( $2 )
+        shift
+      else
+        missing_arg_error "--opus-bitrate"
+        exit 1
+      fi
       ;;
     --downmix-stereo)
     # set downmix of 5.1 surround channels to stereo
@@ -76,7 +109,7 @@ while :; do
       ;;
     --keep-size)
     # set if keeping source file dimensions
-      SIZE=1
+      SIZE=( )
       ;;
     --crf)
     # set CRF
@@ -102,39 +135,13 @@ while :; do
   shift
 done
 
-# if --outdir was not passed, use default
-if [ -z "$OUTDIR" ]; then
-  # default output directory is called 'reencode'
-  OUTDIR=reencode
+# check if --opus-bitrate was passed without --opus
+if [ "$AUDIOCODEC" == "copy" ]; then
+  # exit with error
+  printf 'ERROR: "--opus-bitrate" passed without "--opus"\n' >&2
+  exit 1
 fi
 
-# if --map-args was not passed, use default
-if [ -z "$MAPARGS" ]; then
-  # default is to grab all streams
-  MAPARGS=('-map' '0')
-fi
-
-# if --opus was not passed, use default
-if [ -z "$AUDIOCODEC" ]; then
-  # default is to copy the audio streams over
-  AUDIOCODEC="copy"
-fi
-
-# if --keep-size was not passed, use default
-if [ -z "$SIZE" ]; then
-  # by default we enforce a 720p height, proportional width. For a 16:9 input, this will give 720p resolution.
-  # note HEVC requires even height size, hence the -2
-  SIZE=('-vf' 'scale=w=-2:h=720')
-else
-  # to keep the original size, we don't pass anything to ffmpeg
-  SIZE=( )
-fi
-
-# if --crf was not passed, use default
-if [ -z "$CRF" ]; then
-  # default is 20
-  CRF="20"
-fi
 
 # figure out a task name
 shopt -s extglob
@@ -162,7 +169,7 @@ fi
 ##### WORK #####
 
 # create output directory if it doesn't exist
-if [ ! -d "$OUTDIR" ]; then mkdir "$OUTDIR"; fi
+if [ ! -d "$OUTDIR" ]; then mkdir -p "$OUTDIR"; fi
 
 # compute list of input and output
 declare -a INPUT
@@ -181,7 +188,7 @@ failures=( )
 # execute actual reencoding operations
 i=0
 while [ -n "${INPUT[$i]}" ]; do
-  ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" -pix_fmt yuv420p10 "${MAPARGS[@]}" "${METADATAARGS[@]}" -c:v libx265 -preset slow -crf "${CRF[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${DOWNMIX[@]}" "./$OUTDIR/${OUTPUT[$i]}")
+  ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" -pix_fmt yuv420p10 "${MAPARGS[@]}" "${METADATAARGS[@]}" -c:v libx265 -preset slow -crf "${CRF[@]}" -c:a "${AUDIOCODEC[@]}" "${AUDIOBITRATE[@]}" -c:s copy "${DOWNMIX[@]}" "./$OUTDIR/${OUTPUT[$i]}")
 	
   if ffmpeg "${ARGS[@]}" <$STDINSRC >$STDOUTDEST 2>$STDERRDEST; then
   # ffmpeg exited with success, file should have been reencoded
