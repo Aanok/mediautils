@@ -15,8 +15,7 @@
 # conveniency function printing help/usage information
 usage() {
   echo "Usage:"
-  echo " $0 [ --map-args <stream mapping options> ] [ --opus [bitrate] ] [ --downmix-stereo ] [ --outdir <output directory> ] [ 
---metadata-args <metadata labelling options> ] [ --keep-size ] [ --crf <CRF> ]"
+  echo " $0 [ --map-args <stream mapping options> ] [ --opus [bitrate] ] [ --downmix-stereo ] [ --outdir <output directory> ] [ --wipe-metadata ] [ --metadata-args <metadata labelling options> ] [ --keep-size ] [ --crf <CRF> ]"
   echo " $0 --help | -h"
 }
 
@@ -92,10 +91,15 @@ while :; do
         exit 1
       fi
       ;;
-    --metadata-args)
-    # set metadata labelling
+    --wipe-metadata)
+    # start from blank slate metadata in output file (NB will preserve chapters)
+    # we will however always carry attachment metadata, because it is mandatory lest errors arise
+      METADATAARGS=( "${METADATAARGS[@]}" '-map_metadata' '-1' '-map_metadata:s:t' '0:s:t' )
+      ;;
+    --metadata-args)    
+    # set metadata labelling -- note this will correctly carry through a --wipe-metadata
       if [ -n "$2" ]; then
-        METADATAARGS=( $2 )
+        METADATAARGS=( "${METADATAARGS[@]}" "$2" )
         shift
       else
         mising_arg_error "--metadata-args"
