@@ -14,9 +14,16 @@
 
 # conveniency function printing help/usage information
 usage() {
-  echo "Usage:"
-  echo " $0 [ --map-args <stream mapping options> ] [ --opus [bitrate] ] [ --downmix-stereo ] [ --outdir <output directory> ] [ --wipe-metadata ] [ --metadata-args <metadata labelling options> ] [ --keep-size ] [ --crf <CRF> ]"
-  echo " $0 --help | -h"
+	echo "Usage:"
+	echo "$0
+	--map-args <stream mapping options> (default: -map 0) (please pass them in single quotes)
+	--opus [bitrate]
+	--downmix-stereo
+	--outdir <output directory> (default: ./reencode)
+	--wipe-metadata
+	--keep-size
+	--crf <CRF> (default: 20)
+	--misc-args <arbitrary ffmpeg arguments> (please pass them in single quotes)"
 }
 
 # convenciency function printing an error message when an options requries a non-empty argument following but there isn't one
@@ -55,13 +62,25 @@ while :; do
       usage
       exit
       ;;
-    --map-args)
-    # set stream mapping
+		--map-args)
+		# set stream mapping
       if [ -n "$2" ]; then
+				# mind the lack of quotes for $2: Bash is a special boy when strings start with -
         MAPARGS=( $2 )
         shift
       else
         missing_arg_error "--map-args"
+        exit 1
+      fi
+      ;;
+    --misc-args)
+    # arbitrary arguments
+      if [ -n "$2" ]; then
+				# likewise lack of quotes, see above
+        MISCARGS=( $2 )
+        shift
+      else
+        missing_arg_error "--misc-args"
         exit 1
       fi
       ;;
@@ -96,16 +115,6 @@ while :; do
     # we will however always carry attachment metadata, because it is mandatory lest errors arise
       METADATAARGS=( "${METADATAARGS[@]}" '-map_metadata' '-1' '-map_metadata:s:t' '0:s:t' )
       ;;
-    --metadata-args)    
-    # set metadata labelling -- note this will correctly carry through a --wipe-metadata
-      if [ -n "$2" ]; then
-        METADATAARGS=( "${METADATAARGS[@]}" "$2" )
-        shift
-      else
-        mising_arg_error "--metadata-args"
-        exit 1
-      fi
-      ;;
     --keep-size)
     # set if keeping source file dimensions
       SIZE=( )
@@ -133,6 +142,10 @@ while :; do
   esac
   shift
 done
+
+
+# we always add CRF to video stream metadata
+METADATAARGS=( "${METADATAARGS[@]}" '-metadata:s:v:0' "H265_CRF=$CRF" )
 
 
 # figure out a task name
@@ -180,7 +193,7 @@ failures=( )
 # execute actual reencoding operations
 i=0
 while [ -n "${INPUT[$i]}" ]; do
-  ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" -pix_fmt yuv420p10 "${MAPARGS[@]}" "${METADATAARGS[@]}" -c:v libx265 -preset slow -crf "${CRF[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${DOWNMIX[@]}" "./$OUTDIR/${OUTPUT[$i]}")
+  ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" -pix_fmt yuv420p10 "${MAPARGS[@]}" "${METADATAARGS[@]}" -c:v libx265 -preset slow -crf "${CRF[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${DOWNMIX[@]}" "${MISCARGS[@]}" "./$OUTDIR/${OUTPUT[$i]}")
 	
   if ffmpeg "${ARGS[@]}" <$STDINSRC >$STDOUTDEST 2>$STDERRDEST; then
   # ffmpeg exited with success, file should have been reencoded
