@@ -20,7 +20,7 @@ usage() {
 	--opus [bitrate]
 	--downmix-stereo
 	--outdir <output directory> (default: ./reencode)
-	--wipe-metadata
+	--wipe-metadata [t] (pass t to preserve attachment metadata)
 	--keep-size
 	--crf <CRF> (default: 20)
 	--misc-args <arbitrary ffmpeg arguments> (please pass them in single quotes)"
@@ -88,7 +88,7 @@ while :; do
     # set audio conversion to Opus
       AUDIOCODEC=('libopus' '-vbr' 'on' '-compression_level' '10' '-b:a')
       # check for optional bitrate argument
-      # please note [[ instead of [, it is required for the regex comparison
+      # please note [[ instead of [, it is required for && and regex comparison
       if [[ -n "$2" && "$2" != -* ]]; then
         AUDIOCODEC=( "${AUDIOCODEC[@]}" "$2" )
         shift
@@ -112,8 +112,13 @@ while :; do
       ;;
     --wipe-metadata)
     # start from blank slate metadata in output file (NB will preserve chapters)
-    # we will however always carry attachment metadata, because it is mandatory lest errors arise
-      METADATAARGS=( "${METADATAARGS[@]}" '-map_metadata' '-1' '-map_metadata:s:t' '0:s:t' )
+      METADATAARGS=( "${METADATAARGS[@]}" '-map_metadata' '-1'  )
+			# carry over attachment metadata, required if e.g. there are font attachments
+			# please note [[ for &&
+			if [[ -n "$2" && "$2" == "t" ]]; then
+        METADATAARGS=( "${METADATAARGS[@]}" '-map_metadata:s:t' '0:s:t' )
+        shift
+      fi
       ;;
     --keep-size)
     # set if keeping source file dimensions
