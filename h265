@@ -69,7 +69,6 @@ while :; do
     --vaapi)
     # use hevc_vaapi encoder
       VENC=('-vaapi_device' '/dev/dri/renderD129' '-vf' 'format=nv12,hwupload' '-c:v' 'hevc_vaapi' '-qp')
-      shift
       ;;
 		--map-args)
 		# set stream mapping
