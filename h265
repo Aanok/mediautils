@@ -132,13 +132,13 @@ while :; do
     # set if keeping source file dimensions
       SIZE=( )
       ;;
-    --crf)
-    # set CRF
+    --quality)
+    # set CRF/QP
       if [ -n "$2" ]; then
-        CRF="$2"
+        VQUAL="$2"
         shift
       else
-        mising_arg_error "--crf"
+        mising_arg_error "--quality"
         exit 1
       fi
       ;;
