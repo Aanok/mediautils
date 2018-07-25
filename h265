@@ -49,13 +49,11 @@ AUDIOCODEC="copy"
 # VIDEO QUALITY
 VQUAL="20"
 
-# VIDEO ENCODER
-VENC=('-pix_fmt' 'yuv420p10' '-c:v' 'libx265' '-preset' 'slow' '-crf')
+# ARGUMENT VQUAL IS PASSED TO
+VQUAL_ARG='-crf'
 
-# RESOLUTION
-# by default we enforce a 720p height, proportional width. For a 16:9 input, this will give 720p resolution.
-# note HEVC requires even height size, hence the -2
-SIZE=('-vf' 'scale=w=-2:h=720')
+# VIDEO ENCODER
+VENC=('-pix_fmt' 'yuv420p10' '-c:v' 'libx265' '-preset' 'slow')
 
 
 # parse command-line options
@@ -68,7 +66,9 @@ while :; do
       ;;
     --vaapi)
     # use hevc_vaapi encoder
-      VENC=('-vaapi_device' '/dev/dri/renderD129' '-vf' 'format=nv12,hwupload' '-c:v' 'hevc_vaapi' '-qp')
+      VENC=('-vaapi_device' '/dev/dri/renderD129' '-c:v' 'hevc_vaapi')
+      VQUAL_ARG='-qp'
+      VIDEOFILTER='format=nv12,hwupload'
       ;;
 		--map-args)
 		# set stream mapping
@@ -130,7 +130,7 @@ while :; do
       ;;
     --keep-size)
     # set if keeping source file dimensions
-      SIZE=( )
+      KEEPSIZE="yes"
       ;;
     --quality)
     # set CRF/QP
@@ -157,8 +157,16 @@ while :; do
 done
 
 
+# RESOLUTION
+# by default we enforce a 720p height, proportional width. For a 16:9 input, this will give 720p resolution.
+# note HEVC requires even height size, hence the -2
+if [ -z "$KEEPSIZE" ]; then
+  VIDEOFILTER="scale=w=-2:h=720,$VIDEOFILTER"
+fi
+
+
 # we always add CRF to video stream metadata
-METADATAARGS=( "${METADATAARGS[@]}" '-metadata:s:v:0' "H265_CRF=$CRF" )
+METADATAARGS=( "${METADATAARGS[@]}" '-metadata:s:v:0' "h265_crf=$CRF" )
 
 
 # figure out a task name
@@ -206,7 +214,7 @@ failures=( )
 # execute actual reencoding operations
 i=0
 while [ -n "${INPUT[$i]}" ]; do
-  ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" "${MAPARGS[@]}" "${METADATAARGS[@]}" "${VENC[@]}" "${VQUAL[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${DOWNMIX[@]}" "${MISCARGS[@]}" "./$OUTDIR/${OUTPUT[$i]}")
+  ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" "${MAPARGS[@]}" "${METADATAARGS[@]}" "${VENC[@]}" '-vf' "${VIDEOFILTER[@]}" "${VQUAL_ARG[@]}" "${VQUAL[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${DOWNMIX[@]}" "${MISCARGS[@]}" "./$OUTDIR/${OUTPUT[$i]}")
 	
   if ffmpeg "${ARGS[@]}" <$STDINSRC >$STDOUTDEST 2>$STDERRDEST; then
   # ffmpeg exited with success, file should have been reencoded
