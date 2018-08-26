@@ -31,7 +31,7 @@ usage() {
 missing_arg_error() {
 	printf 'ERROR: "%s" requires a non-empty option argument.\n' "$1" >&2
 }
-  
+ 
 
 ##### PRELIMINARIES #####
 
@@ -161,7 +161,11 @@ done
 # by default we enforce a 720p height, proportional width. For a 16:9 input, this will give 720p resolution.
 # note HEVC requires even height size, hence the -2
 if [ -z "$KEEPSIZE" ]; then
-  VIDEOFILTER="scale=w=-2:h=720,$VIDEOFILTER"
+  if [ -n "$VIDEOFILTER" ]; then
+    VIDEOFILTER="scale=w=-2:h=720,$VIDEOFILTER"
+  else
+    VIDEOFILTER="scale=w=-2:h=720"
+  fi
 fi
 
 
@@ -215,7 +219,7 @@ failures=( )
 i=0
 while [ -n "${INPUT[$i]}" ]; do
   ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" "${MAPARGS[@]}" "${METADATAARGS[@]}" "${VENC[@]}" '-vf' "${VIDEOFILTER[@]}" "${VQUAL_ARG[@]}" "${VQUAL[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${DOWNMIX[@]}" "${MISCARGS[@]}" "./$OUTDIR/${OUTPUT[$i]}")
-	
+
   if ffmpeg "${ARGS[@]}" <$STDINSRC >$STDOUTDEST 2>$STDERRDEST; then
   # ffmpeg exited with success, file should have been reencoded
     successes=( "${successes[@]}" "${OUTPUT[$i]}" )
