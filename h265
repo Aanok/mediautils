@@ -31,7 +31,7 @@ usage() {
 missing_arg_error() {
 	printf 'ERROR: "%s" requires a non-empty option argument.\n' "$1" >&2
 }
- 
+
 
 ##### PRELIMINARIES #####
 
@@ -70,10 +70,10 @@ while :; do
       VQUAL_ARG='-qp'
       VIDEOFILTER='format=nv12,hwupload'
       ;;
-		--map-args)
-		# set stream mapping
+    --map-args)
+    # set stream mapping
       if [ -n "$2" ]; then
-				# mind the lack of quotes for $2: Bash is a special boy when strings start with -
+      # mind the lack of quotes for $2: Bash is a special boy when strings start with -
         MAPARGS=( $2 )
         shift
       else
@@ -84,7 +84,7 @@ while :; do
     --misc-args)
     # arbitrary arguments
       if [ -n "$2" ]; then
-				# likewise lack of quotes, see above
+      # likewise lack of quotes, see above
         MISCARGS=( $2 )
         shift
       else
@@ -121,9 +121,9 @@ while :; do
     --wipe-metadata)
     # start from blank slate metadata in output file (NB will preserve chapters)
       METADATAARGS=( "${METADATAARGS[@]}" '-map_metadata' '-1'  )
-			# carry over attachment metadata, required if e.g. there are font attachments
-			# please note [[ for &&
-			if [[ -n "$2" && "$2" == "t" ]]; then
+      # carry over attachment metadata, required if e.g. there are font attachments
+      # please note [[ for &&
+      if [[ -n "$2" && "$2" == "t" ]]; then
         METADATAARGS=( "${METADATAARGS[@]}" '-map_metadata:s:t' '0:s:t' )
         shift
       fi
@@ -143,15 +143,15 @@ while :; do
       fi
       ;;
     -?*)
-		# unrecognized
-			printf 'ERROR: Unkown option "%s"\n' "$1" >&2
-			usage
-			exit 1
-			;;
-		*)
-		# end of options, leave case statement
-			break
-			;;
+    # unrecognized
+      printf 'ERROR: Unkown option "%s"\n' "$1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+    # end of options, leave case statement
+      break
+      ;;
   esac
   shift
 done
@@ -170,7 +170,7 @@ fi
 
 
 # we always add CRF to video stream metadata
-METADATAARGS=( "${METADATAARGS[@]}" '-metadata:s:v:0' "h265_crf=$CRF" )
+METADATAARGS=( "${METADATAARGS[@]}" '-metadata:s:v:0' "h265_crf=$VQUAL" )
 
 
 # figure out a task name
