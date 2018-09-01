@@ -211,7 +211,7 @@ if [ ! -d "$OUTDIR" ]; then mkdir -p "$OUTDIR"; fi
 declare -a INPUT
 declare -a OUTPUT
 i=0
-for x in *.@(mkv|mp4|avi); do
+for x in *.@(mkv|mp4|avi|flv|f4v|wmv); do
   INPUT[$i]="$x"
   OUTPUT[$i]="${x%.*}.mkv"
   ((i++))
