@@ -24,6 +24,7 @@ usage() {
 	--wipe-metadata [t] (pass t to preserve attachment metadata)
 	--keep-size
 	--quality <CRF/QP> (default: 20 for libx265, as per ffmpeg for hevc_vaapi)
+	--sharpen
 	--misc-args <arbitrary ffmpeg arguments> (please pass them in single quotes)"
 }
 
@@ -68,7 +69,11 @@ while :; do
     # use hevc_vaapi encoder
       VENC=('-vaapi_device' '/dev/dri/renderD129' '-c:v' 'hevc_vaapi')
       VQUAL_ARG='-qp'
-      VIDEOFILTER='format=nv12,hwupload'
+      if [ -n "$VIDEOFILTER" ]; then
+        VIDEOFILTER='format=nv12,hwupload,'"$VIDEOFILTER"
+      else
+        VIDEOFILTER='format=nv12,hwupload'
+      fi
       ;;
     --map-args)
     # set stream mapping
@@ -142,6 +147,14 @@ while :; do
         exit 1
       fi
       ;;
+    --sharpen)
+    # apply unsharp filter
+      if [ -n "$VIDEOFILTER" ]; then
+        VIDEOFILTER="$VIDEOFILTER,unsharp=3:3"
+      else
+        VIDEOFILTER="unsharp=3:3"
+      fi
+      ;;
     -?*)
     # unrecognized
       printf 'ERROR: Unkown option "%s"\n' "$1" >&2
@@ -211,7 +224,7 @@ if [ ! -d "$OUTDIR" ]; then mkdir -p "$OUTDIR"; fi
 declare -a INPUT
 declare -a OUTPUT
 i=0
-for x in *.@(mkv|mp4|avi|flv|f4v|wmv); do
+for x in *.@(mkv|mp4|avi|m2ts); do
   INPUT[$i]="$x"
   OUTPUT[$i]="${x%.*}.mkv"
   ((i++))
