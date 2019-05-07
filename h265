@@ -24,7 +24,8 @@ usage() {
 	--720p | --1080p
 	--quality <CRF> (default: 20)
 	--sharpen
-	--misc-args <arbitrary ffmpeg arguments> (please pass them in single quotes)"
+	--misc-args <arbitrary ffmpeg arguments> (please pass them in single quotes)
+	--dry-run"
 }
 
 # convenciency function printing an error message when an options requries a non-empty argument following but there isn't one
@@ -59,6 +60,9 @@ VQUAL_ARG='-crf'
 
 # VIDEO ENCODER
 VENC=('-pix_fmt' 'yuv420p10' '-c:v' 'libx265' '-preset' 'slow')
+
+# FFMPEG EXECUTABLE
+PROGRAM='ffmpeg'
 
 
 # parse command-line options
@@ -173,6 +177,9 @@ while :; do
         VIDEOFILTER="unsharp=3:3"
       fi
       ;;
+	--dry-run)
+		PROGRAM=echo
+		;;
     -?*)
     # unrecognized
       printf 'ERROR: Unkown option "%s"\n' "$1" >&2
@@ -245,7 +252,7 @@ i=0
 while [ -n "${INPUT[$i]}" ]; do
   ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" "${MAPARGS[@]}" "${METADATAARGS[@]}" "${VENC[@]}" "${VIDEOFILTER[@]}" "${VQUAL_ARG[@]}" "${VQUAL[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${DOWNMIX[@]}" "${MISCARGS[@]}" "./$OUTDIR/${OUTPUT[$i]}")
 
-  if ffmpeg "${ARGS[@]}" <$STDINSRC >$STDOUTDEST 2>$STDERRDEST; then
+  if "$PROGRAM" "${ARGS[@]}" <$STDINSRC >$STDOUTDEST 2>$STDERRDEST; then
   # ffmpeg exited with success, file should have been reencoded
     successes=( "${successes[@]}" "${OUTPUT[$i]}" )
   else
@@ -280,7 +287,9 @@ else
 fi
 
 # send mail notification
-cat mailbody | mail -s "Reencoding $taskname" fabrizio.baldini@protonmail.com >$STDOUTDEST 2>$STDERRDEST
+if [ "$PROGRAM" != 'echo' ]; then
+	cat mailbody | mail -s "Reencoding $taskname" fabrizio.baldini@protonmail.com >$STDOUTDEST 2>$STDERRDEST
+fi
 
 # cleanup
 rm mailbody
