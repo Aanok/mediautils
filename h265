@@ -16,14 +16,13 @@
 usage() {
 	echo "Usage:"
 	echo "$0
-	--vaapi
 	--map-args <stream mapping options> (default: -map 0) (please pass them in single quotes)
 	--opus [bitrate]
 	--downmix-stereo
 	--outdir <output directory> (default: ./reencode)
 	--wipe-metadata [t] (pass t to preserve attachment metadata)
-	--keep-size
-	--quality <CRF/QP> (default: 20 for libx265, as per ffmpeg for hevc_vaapi)
+	--720p | --1080p
+	--quality <CRF> (default: 20)
 	--sharpen
 	--misc-args <arbitrary ffmpeg arguments> (please pass them in single quotes)"
 }
@@ -31,6 +30,11 @@ usage() {
 # convenciency function printing an error message when an options requries a non-empty argument following but there isn't one
 missing_arg_error() {
 	printf 'ERROR: "%s" requires a non-empty option argument.\n' "$1" >&2
+}
+
+# conveniency function printing an error message when two incompatible options have been passed together
+incompatible_arg_error() {
+	printf 'ERROR: option "%s" is incompatible with "%s".\n' "$1" "$2" >&2
 }
 
 
@@ -64,16 +68,6 @@ while :; do
     # print usage information
       usage
       exit
-      ;;
-    --vaapi)
-    # use hevc_vaapi encoder
-      VENC=('-vaapi_device' '/dev/dri/renderD129' '-c:v' 'hevc_vaapi')
-      VQUAL_ARG='-qp'
-      if [ -n "$VIDEOFILTER" ]; then
-        VIDEOFILTER='format=nv12,hwupload,'"$VIDEOFILTER"
-      else
-        VIDEOFILTER='format=nv12,hwupload'
-      fi
       ;;
     --map-args)
     # set stream mapping
@@ -137,6 +131,30 @@ while :; do
     # set if keeping source file dimensions
       KEEPSIZE="yes"
       ;;
+    --720p)
+	  if [ -n "$TENEIGHTY" ]; then
+		incompatible_arg_error "--720p" "--1080p"
+		exit 1
+	  fi
+	  if [ -n "$VIDEOFILTER" ]; then
+		VIDEOFILTER="scale=w=-2:h=720,$VIDEOFILTER"
+      else
+		VIDEOFILTER="scale=w=-2:h=720"
+	  fi
+	  SEVENTWENTY=1
+	  ;;
+    --1080p)
+	  if [ -n "$SEVENTWENTY" ]; then
+		  incompatible_arg_error "--1080p" "--720p"
+		  exit 1
+	  fi
+	  if [ -n "$VIDEOFILTER" ]; then
+		VIDEOFILTER="scale=w=-2:h=1080,$VIDEOFILTER"
+	  else
+		VIDEOFILTER="scale=w=-2:h=1080"
+	  fi
+	  TENEIGHTY=1
+	  ;;
     --quality)
     # set CRF/QP
       if [ -n "$2" ]; then
@@ -168,18 +186,6 @@ while :; do
   esac
   shift
 done
-
-
-# RESOLUTION
-# by default we enforce a 720p height, proportional width. For a 16:9 input, this will give 720p resolution.
-# note HEVC requires even height size, hence the -2
-if [ -z "$KEEPSIZE" ]; then
-  if [ -n "$VIDEOFILTER" ]; then
-    VIDEOFILTER="scale=w=-2:h=720,$VIDEOFILTER"
-  else
-    VIDEOFILTER="scale=w=-2:h=720"
-  fi
-fi
 
 
 # add parameter in front if we're gonna use it
