@@ -65,6 +65,20 @@ VENC=('-pix_fmt' 'yuv420p10' '-c:v' 'libx265' '-preset' 'slow')
 PROGRAM='ffmpeg'
 
 
+# load configuration files
+if [ -f '/etc/h265' ]; then
+	source '/etc/h265'
+fi
+if [ -n "${XDG_CONFIG_HOME}" ]; then
+	USER_CONFIG_PREFIX="${XDG_CONFIG_HOME}"
+else
+	USER_CONFIG_PREFIX="${HOME}/.config"
+fi
+if [ -f "${USER_CONFIG_PREFIX}/h265" ]; then
+	source "${USER_CONFIG_PREFIX}/h265"
+fi
+
+
 # parse command-line options
 while :; do
   case "$1" in
@@ -287,8 +301,8 @@ else
 fi
 
 # send mail notification
-if [ "$PROGRAM" != 'echo' ]; then
-	cat mailbody | mail -s "Reencoding $taskname" fabrizio.baldini@protonmail.com >$STDOUTDEST 2>$STDERRDEST
+if [ "$PROGRAM" != 'echo' ] && [ -n "${MAILDEST}" ]; then
+	cat mailbody | mail -s "Reencoding $taskname" "${MAILDEST}" >$STDOUTDEST 2>$STDERRDEST
 fi
 
 # cleanup
