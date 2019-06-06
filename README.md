@@ -1,12 +1,11 @@
-# mediautils
-### Requirements for h265:
+# Requirements
+### h265:
 * ffmpeg
 
-### Requirements for audio2opus:
+### audio2opus:
 * ffmpeg
-* bash
 
-### Requirements for cuesplit:
+### cuesplit:
 * shntool
 * cuetools
 * flac
@@ -15,7 +14,6 @@
 
 These are all Debian packages.
 
-### TODO
+# TODO
 * Improve --map-args --metadata-args interface of h265
 * h265: add a filter for blackbanding in case of resize
-* h265, audio2opus: add a '--misc' argument to pass any argument to ffmpeg.
