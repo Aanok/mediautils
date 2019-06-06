@@ -160,28 +160,22 @@ if [ -z "$EMAIL" ];
 	exit
 fi
 
-# setup start of body of mail notification
-if [ -f mailbody ]; then rm mailbody; fi
-echo "Reencoding $INDIR in Opus: done." >> mailbody
+# setup body
+mailbody="Reencoding $INDIR in Opus: done."
 
-# complete body of mail notification
 if [ ${#successes[@]} = 0 ]; then
-	echo 'No file was successfully reencoded.' >> mailbody
+	mailbody="$mailbody"$'\nNo file was successfully reencoded.'
 else
-	echo "The following files were successfully generated under directory $OUTDIR:" >> mailbody
-	printf '%s\n' "${successes[@]}" >> mailbody
-fi
-echo >> mailbody
-
-if [ ${#failuress[@]} = 0 ]; then
-        echo 'All input files were processed.' >> mailbody
-else
-        echo 'There was an error processing the following files:' >> mailbody
-        printf '%s\n' "${failures[@]}" >> mailbody
+	mailbody="$mailbody"$'\nThe following files were successfully generated under directory '"$OUTDIR:"
+	mailbody="$mailbody"$'\n'`printf '%s\n' "${successes[@]}"`$'\n'
 fi
 
-# send email notification
-cat mailbody | mail -s 'Reencoding ${INDIR##*/} in Opus' "$EMAIL"
+if [ ${#failures[@]} = 0 ]; then
+        mailbody="$mailbody"$'\nAll input files were processed.'
+else
+        mailbody="$mailbody"$'\n There was an error processing the following files:'
+        mailbody="$mailbody"$'\n'`printf '%s\n' "${failures[@]}"`
+fi
 
-# cleanup
-rm mailbody
+# send
+echo "$mailbody" | mail -s "Reencoding ${INDIR##*/} in Opus" "$EMAIL"
