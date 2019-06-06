@@ -1,280 +1,280 @@
-# #!/bin/bash
-# # run as 'ffmpeg [...] </dev/null >/dev/null 2>/var/log/ffmpeg.log &' for background execution
-# # to grab all streams from the first input file, inlcuding attachments, use '-map 0'
-# # to grab all attachments from the first input file use '-map 0:t'
-# # to encode with 10 bits of colour depth use '-pix_fmt yuv420p10'
-# # to strip the final dot and extension from $x use '${x%.*}'
-# # if you need to reencode audio use Opus: '-c:a libopus -vbr on -compression_level 10 -b:a 128000' (64kbps per channel)
-# # to set all audio streams to 2 channels: '-ac 2' (note this will just copy over FL and FR channels without any mixing)
-# # to convert 5.1 sound to stereo for all audio streams with good volume levels: '-af "pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR"'
-# # to encode in 720p with blackbanding use '-s hd720 -aspect 16:9' (this for 720p output; aspect adds the black bands)
-# 
-# ##### NB: ffmpeg was programmed by a herd of baboons, so tty options have to be passed as an array instead of a string
-# 
-# 
-# # conveniency function printing help/usage information
-# usage() {
-# 	echo "Usage:"
-# 	echo "$0
-# 	--map-args <stream mapping options> (default: -map 0) (please pass them in single quotes)
-# 	--opus [bitrate]
-# 	--downmix-stereo
-# 	--outdir <output directory> (default: ./reencode)
-# 	--wipe-metadata [t] (pass t to preserve attachment metadata)
-# 	--720p | --1080p
-# 	--quality <CRF> (default: 20)
-# 	--sharpen
-# 	--misc-args <arbitrary ffmpeg arguments> (please pass them in single quotes)
-# 	--dry-run"
-# }
-# 
-# # convenciency function printing an error message when an options requries a non-empty argument following but there isn't one
-# missing_arg_error() {
-# 	printf 'ERROR: "%s" requires a non-empty option argument.\n' "$1" >&2
-# }
-# 
-# # conveniency function printing an error message when two incompatible options have been passed together
-# incompatible_arg_error() {
-# 	printf 'ERROR: option "%s" is incompatible with "%s".\n' "$1" "$2" >&2
-# }
-# 
-# 
-# ##### PRELIMINARIES #####
-# 
-# # set defaults
-# 
-# # OUTPUT DIRECTORY
-# OUTDIR=reencode
-# 
-# # STREAM MAPPING
-# MAPARGS=('-map' '0')
-# 
-# # AUDIO CODEC
-# AUDIOCODEC="copy"
-# 
-# # VIDEO QUALITY
-# VQUAL="20"
-# 
-# # ARGUMENT VQUAL IS PASSED TO
-# VQUAL_ARG='-crf'
-# 
-# # VIDEO ENCODER
-# VENC=('-pix_fmt' 'yuv420p10' '-c:v' 'libx265' '-preset' 'slow')
-# 
-# # FFMPEG EXECUTABLE
-# PROGRAM='ffmpeg'
-# 
-# 
-# # load configuration files
-# if [ -f '/etc/h265' ]; then
-# 	source '/etc/h265'
-# fi
-# if [ -n "${XDG_CONFIG_HOME}" ]; then
-# 	USER_CONFIG_PREFIX="${XDG_CONFIG_HOME}"
-# else
-# 	USER_CONFIG_PREFIX="${HOME}/.config"
-# fi
-# if [ -f "${USER_CONFIG_PREFIX}/h265" ]; then
-# 	source "${USER_CONFIG_PREFIX}/h265"
-# fi
-# 
-# 
-# # parse command-line options
-# while :; do
-#   case "$1" in
-#     -h|--help)
-#     # print usage information
-#       usage
-#       exit
-#       ;;
-#     --map-args)
-#     # set stream mapping
-#       if [ -n "$2" ]; then
-#       # mind the lack of quotes for $2: Bash is a special boy when strings start with -
-#         MAPARGS=( $2 )
-#         shift
-#       else
-#         missing_arg_error "--map-args"
-#         exit 1
-#       fi
-#       ;;
-#     --misc-args)
-#     # arbitrary arguments
-#       if [ -n "$2" ]; then
-#       # likewise lack of quotes, see above
-#         MISCARGS=( $2 )
-#         shift
-#       else
-#         missing_arg_error "--misc-args"
-#         exit 1
-#       fi
-#       ;;
-#     --opus)
-#     # set audio conversion to Opus
-#       AUDIOCODEC=('libopus' '-vbr' 'on' '-compression_level' '10' '-b:a')
-#       # check for optional bitrate argument
-#       # please note [[ instead of [, it is required for && and regex comparison
-#       if [[ -n "$2" && "$2" != -* ]]; then
-#         AUDIOCODEC=( "${AUDIOCODEC[@]}" "$2" )
-#         shift
-#       else
-#         AUDIOCODEC=( "${AUDIOCODEC[@]}" "128000" )
-#       fi
-#       ;;
-#     --downmix-stereo)
-#     # set downmix of 5.1 surround channels to stereo
-#       DOWNMIX=(-ac 2 -af 'pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR')
-#       ;;
-#     --outdir)
-#     # set output directory
-#       if [ -n "$2" ]; then
-#         OUTDIR="$2"
-#         shift
-#       else
-#         missing_arg_error "--outdir"
-#         exit 1
-#       fi
-#       ;;
-#     --wipe-metadata)
-#     # start from blank slate metadata in output file (NB will preserve chapters)
-#       METADATAARGS=( "${METADATAARGS[@]}" '-map_metadata' '-1'  )
-#       # carry over attachment metadata, required if e.g. there are font attachments
-#       # please note [[ for &&
-#       if [[ -n "$2" && "$2" == "t" ]]; then
-#         METADATAARGS=( "${METADATAARGS[@]}" '-map_metadata:s:t' '0:s:t' )
-#         shift
-#       fi
-#       ;;
-#     --keep-size)
-#     # set if keeping source file dimensions
-#       KEEPSIZE="yes"
-#       ;;
-#     --720p)
-# 	  if [ -n "$TENEIGHTY" ]; then
-# 		incompatible_arg_error "--720p" "--1080p"
-# 		exit 1
-# 	  fi
-# 	  if [ -n "$VIDEOFILTER" ]; then
-# 		VIDEOFILTER="scale=w=-2:h=720,$VIDEOFILTER"
-#       else
-# 		VIDEOFILTER="scale=w=-2:h=720"
-# 	  fi
-# 	  SEVENTWENTY=1
-# 	  ;;
-#     --1080p)
-# 	  if [ -n "$SEVENTWENTY" ]; then
-# 		  incompatible_arg_error "--1080p" "--720p"
-# 		  exit 1
-# 	  fi
-# 	  if [ -n "$VIDEOFILTER" ]; then
-# 		VIDEOFILTER="scale=w=-2:h=1080,$VIDEOFILTER"
-# 	  else
-# 		VIDEOFILTER="scale=w=-2:h=1080"
-# 	  fi
-# 	  TENEIGHTY=1
-# 	  ;;
-#     --quality)
-#     # set CRF/QP
-#       if [ -n "$2" ]; then
-#         VQUAL="$2"
-#         shift
-#       else
-#         mising_arg_error "--quality"
-#         exit 1
-#       fi
-#       ;;
-#     --sharpen)
-#     # apply unsharp filter
-#       if [ -n "$VIDEOFILTER" ]; then
-#         VIDEOFILTER="$VIDEOFILTER,unsharp=3:3"
-#       else
-#         VIDEOFILTER="unsharp=3:3"
-#       fi
-#       ;;
-# 	--dry-run)
-# 		PROGRAM=echo
-# 		;;
-#     -?*)
-#     # unrecognized
-#       printf 'ERROR: Unkown option "%s"\n' "$1" >&2
-#       usage
-#       exit 1
-#       ;;
-#     *)
-#     # end of options, leave case statement
-#       break
-#       ;;
-#   esac
-#   shift
-# done
-# 
-# 
-# # add parameter in front if we're gonna use it
-# if [ -n "$VIDEOFILTER" ]; then
-#   VIDEOFILTER=( '-vf' "$VIDEOFILTER")
-# fi
-# 
-# 
-# # we always add CRF to video stream metadata
-# METADATAARGS=( "${METADATAARGS[@]}" '-metadata:s:v:0' "h265_crf=$VQUAL" )
-# 
-# 
-# # figure out a task name
-# shopt -s extglob
-# if [[ "$PWD" == */[sS]@(eason\ +([0-9])|pecial?(s))* ]]; then
-# 	taskname="${PWD%%/[sS]@(eason\ +([0-9])|pecial?(s))*}"
-# 	taskname="${taskname##*/}"
-# else
-# 	taskname="${PWD##*/}"
-# fi
-# 
-# # figure out if background execution
-# if [[ $(ps -o stat= -p $$) == *+* ]]; then
-# 	# Running in foreground
-#   STDINSRC='/dev/stdin'
-#   STDOUTDEST='/dev/stdout'
-#   STDERRDEST='/dev/stderr'
-# else
-#   # Running in background
-#   STDINSRC='/dev/null'
-#   STDOUTDEST='/dev/null'
-#   STDERRDEST='ffmpeg.log'
-# fi
-# 
-# 
-# ##### WORK #####
-# 
-# # create output directory if it doesn't exist
-# if [ ! -d "$OUTDIR" ]; then mkdir -p "$OUTDIR"; fi
-# 
-# # compute list of input and output
-# declare -a INPUT
-# declare -a OUTPUT
-# i=0
-# for x in *.@(mkv|mp4|avi|m2ts); do
-#   INPUT[$i]="$x"
-#   OUTPUT[$i]="${x%.*}.mkv"
-#   ((i++))
-# done
-# 
-# 
-# # we'll keep track of successes and failures
-# successes=( )
-# failures=( )
-# # execute actual reencoding operations
-# i=0
-# while [ -n "${INPUT[$i]}" ]; do
-#   ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" "${MAPARGS[@]}" "${METADATAARGS[@]}" "${VENC[@]}" "${VIDEOFILTER[@]}" "${VQUAL_ARG[@]}" "${VQUAL[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${DOWNMIX[@]}" "${MISCARGS[@]}" "./$OUTDIR/${OUTPUT[$i]}")
-# 
-#   if "$PROGRAM" "${ARGS[@]}" <$STDINSRC >$STDOUTDEST 2>$STDERRDEST; then
-#   # ffmpeg exited with success, file should have been reencoded
-#     successes=( "${successes[@]}" "${OUTPUT[$i]}" )
-#   else
-#     # there was a failure of some kind
-# 		failures=( "${failures[@]}" "${INPUT[$i]}" )
-#   fi
-#   ((i++))
-# done
+#!/bin/bash
+# run as 'ffmpeg [...] </dev/null >/dev/null 2>/var/log/ffmpeg.log &' for background execution
+# to grab all streams from the first input file, inlcuding attachments, use '-map 0'
+# to grab all attachments from the first input file use '-map 0:t'
+# to encode with 10 bits of colour depth use '-pix_fmt yuv420p10'
+# to strip the final dot and extension from $x use '${x%.*}'
+# if you need to reencode audio use Opus: '-c:a libopus -vbr on -compression_level 10 -b:a 128000' (64kbps per channel)
+# to set all audio streams to 2 channels: '-ac 2' (note this will just copy over FL and FR channels without any mixing)
+# to convert 5.1 sound to stereo for all audio streams with good volume levels: '-af "pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR"'
+# to encode in 720p with blackbanding use '-s hd720 -aspect 16:9' (this for 720p output; aspect adds the black bands)
+
+##### NB: ffmpeg was programmed by a herd of baboons, so tty options have to be passed as an array instead of a string
+
+
+# conveniency function printing help/usage information
+usage() {
+	echo "Usage:"
+	echo "$0
+	--map-args <stream mapping options> (default: -map 0) (please pass them in single quotes)
+	--opus [bitrate]
+	--downmix-stereo
+	--outdir <output directory> (default: ./reencode)
+	--wipe-metadata [t] (pass t to preserve attachment metadata)
+	--720p | --1080p
+	--quality <CRF> (default: 20)
+	--sharpen
+	--misc-args <arbitrary ffmpeg arguments> (please pass them in single quotes)
+	--dry-run"
+}
+
+# convenciency function printing an error message when an options requries a non-empty argument following but there isn't one
+missing_arg_error() {
+	printf 'ERROR: "%s" requires a non-empty option argument.\n' "$1" >&2
+}
+
+# conveniency function printing an error message when two incompatible options have been passed together
+incompatible_arg_error() {
+	printf 'ERROR: option "%s" is incompatible with "%s".\n' "$1" "$2" >&2
+}
+
+
+##### PRELIMINARIES #####
+
+# set defaults
+
+# OUTPUT DIRECTORY
+OUTDIR=reencode
+
+# STREAM MAPPING
+MAPARGS=('-map' '0')
+
+# AUDIO CODEC
+AUDIOCODEC="copy"
+
+# VIDEO QUALITY
+VQUAL="20"
+
+# ARGUMENT VQUAL IS PASSED TO
+VQUAL_ARG='-crf'
+
+# VIDEO ENCODER
+VENC=('-pix_fmt' 'yuv420p10' '-c:v' 'libx265' '-preset' 'slow')
+
+# FFMPEG EXECUTABLE
+PROGRAM='ffmpeg'
+
+
+# load configuration files
+if [ -f '/etc/h265' ]; then
+	source '/etc/h265'
+fi
+if [ -n "${XDG_CONFIG_HOME}" ]; then
+	USER_CONFIG_PREFIX="${XDG_CONFIG_HOME}"
+else
+	USER_CONFIG_PREFIX="${HOME}/.config"
+fi
+if [ -f "${USER_CONFIG_PREFIX}/h265" ]; then
+	source "${USER_CONFIG_PREFIX}/h265"
+fi
+
+
+# parse command-line options
+while :; do
+  case "$1" in
+    -h|--help)
+    # print usage information
+      usage
+      exit
+      ;;
+    --map-args)
+    # set stream mapping
+      if [ -n "$2" ]; then
+      # mind the lack of quotes for $2: Bash is a special boy when strings start with -
+        MAPARGS=( $2 )
+        shift
+      else
+        missing_arg_error "--map-args"
+        exit 1
+      fi
+      ;;
+    --misc-args)
+    # arbitrary arguments
+      if [ -n "$2" ]; then
+      # likewise lack of quotes, see above
+        MISCARGS=( $2 )
+        shift
+      else
+        missing_arg_error "--misc-args"
+        exit 1
+      fi
+      ;;
+    --opus)
+    # set audio conversion to Opus
+      AUDIOCODEC=('libopus' '-vbr' 'on' '-compression_level' '10' '-b:a')
+      # check for optional bitrate argument
+      # please note [[ instead of [, it is required for && and regex comparison
+      if [[ -n "$2" && "$2" != -* ]]; then
+        AUDIOCODEC=( "${AUDIOCODEC[@]}" "$2" )
+        shift
+      else
+        AUDIOCODEC=( "${AUDIOCODEC[@]}" "128000" )
+      fi
+      ;;
+    --downmix-stereo)
+    # set downmix of 5.1 surround channels to stereo
+      DOWNMIX=(-ac 2 -af 'pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR')
+      ;;
+    --outdir)
+    # set output directory
+      if [ -n "$2" ]; then
+        OUTDIR="$2"
+        shift
+      else
+        missing_arg_error "--outdir"
+        exit 1
+      fi
+      ;;
+    --wipe-metadata)
+    # start from blank slate metadata in output file (NB will preserve chapters)
+      METADATAARGS=( "${METADATAARGS[@]}" '-map_metadata' '-1'  )
+      # carry over attachment metadata, required if e.g. there are font attachments
+      # please note [[ for &&
+      if [[ -n "$2" && "$2" == "t" ]]; then
+        METADATAARGS=( "${METADATAARGS[@]}" '-map_metadata:s:t' '0:s:t' )
+        shift
+      fi
+      ;;
+    --keep-size)
+    # set if keeping source file dimensions
+      KEEPSIZE="yes"
+      ;;
+    --720p)
+	  if [ -n "$TENEIGHTY" ]; then
+		incompatible_arg_error "--720p" "--1080p"
+		exit 1
+	  fi
+	  if [ -n "$VIDEOFILTER" ]; then
+		VIDEOFILTER="scale=w=-2:h=720,$VIDEOFILTER"
+      else
+		VIDEOFILTER="scale=w=-2:h=720"
+	  fi
+	  SEVENTWENTY=1
+	  ;;
+    --1080p)
+	  if [ -n "$SEVENTWENTY" ]; then
+		  incompatible_arg_error "--1080p" "--720p"
+		  exit 1
+	  fi
+	  if [ -n "$VIDEOFILTER" ]; then
+		VIDEOFILTER="scale=w=-2:h=1080,$VIDEOFILTER"
+	  else
+		VIDEOFILTER="scale=w=-2:h=1080"
+	  fi
+	  TENEIGHTY=1
+	  ;;
+    --quality)
+    # set CRF/QP
+      if [ -n "$2" ]; then
+        VQUAL="$2"
+        shift
+      else
+        mising_arg_error "--quality"
+        exit 1
+      fi
+      ;;
+    --sharpen)
+    # apply unsharp filter
+      if [ -n "$VIDEOFILTER" ]; then
+        VIDEOFILTER="$VIDEOFILTER,unsharp=3:3"
+      else
+        VIDEOFILTER="unsharp=3:3"
+      fi
+      ;;
+	--dry-run)
+		PROGRAM=echo
+		;;
+    -?*)
+    # unrecognized
+      printf 'ERROR: Unkown option "%s"\n' "$1" >&2
+      usage
+      exit 1
+      ;;
+    *)
+    # end of options, leave case statement
+      break
+      ;;
+  esac
+  shift
+done
+
+
+# add parameter in front if we're gonna use it
+if [ -n "$VIDEOFILTER" ]; then
+  VIDEOFILTER=( '-vf' "$VIDEOFILTER")
+fi
+
+
+# we always add CRF to video stream metadata
+METADATAARGS=( "${METADATAARGS[@]}" '-metadata:s:v:0' "h265_crf=$VQUAL" )
+
+
+# figure out a task name
+shopt -s extglob
+if [[ "$PWD" == */[sS]@(eason\ +([0-9])|pecial?(s))* ]]; then
+	taskname="${PWD%%/[sS]@(eason\ +([0-9])|pecial?(s))*}"
+	taskname="${taskname##*/}"
+else
+	taskname="${PWD##*/}"
+fi
+
+# figure out if background execution
+if [[ $(ps -o stat= -p $$) == *+* ]]; then
+	# Running in foreground
+  STDINSRC='/dev/stdin'
+  STDOUTDEST='/dev/stdout'
+  STDERRDEST='/dev/stderr'
+else
+  # Running in background
+  STDINSRC='/dev/null'
+  STDOUTDEST='/dev/null'
+  STDERRDEST='ffmpeg.log'
+fi
+
+
+##### WORK #####
+
+# create output directory if it doesn't exist
+if [ ! -d "$OUTDIR" ]; then mkdir -p "$OUTDIR"; fi
+
+# compute list of input and output
+declare -a INPUT
+declare -a OUTPUT
+i=0
+for x in *.@(mkv|mp4|avi|m2ts); do
+  INPUT[$i]="$x"
+  OUTPUT[$i]="${x%.*}.mkv"
+  ((i++))
+done
+
+
+# we'll keep track of successes and failures
+successes=( )
+failures=( )
+# execute actual reencoding operations
+i=0
+while [ -n "${INPUT[$i]}" ]; do
+  ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" "${MAPARGS[@]}" "${METADATAARGS[@]}" "${VENC[@]}" "${VIDEOFILTER[@]}" "${VQUAL_ARG[@]}" "${VQUAL[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${DOWNMIX[@]}" "${MISCARGS[@]}" "./$OUTDIR/${OUTPUT[$i]}")
+
+  if "$PROGRAM" "${ARGS[@]}" <$STDINSRC >$STDOUTDEST 2>$STDERRDEST; then
+  # ffmpeg exited with success, file should have been reencoded
+    successes=( "${successes[@]}" "${OUTPUT[$i]}" )
+  else
+    # there was a failure of some kind
+		failures=( "${failures[@]}" "${INPUT[$i]}" )
+  fi
+  ((i++))
+done
 
 
 ##### EMAIL NOTIFICATION #####
