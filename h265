@@ -251,7 +251,7 @@ failures=()
 # execute actual reencoding operations
 i=0
 while [[ -n "${INPUT[$i]}" ]]; do
-	ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" "${MAPARGS[@]}" "${METADATAARGS[@]}" "${VENC[@]}" "${VIDEOFILTER[@]}" "${VQUAL_ARG[@]}" "${VQUAL[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${DOWNMIX[@]}" "${MISCARGS[@]}" "./$OUTDIR/${OUTPUT[$i]}")
+	ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" "${MAPARGS[@]}" "${METADATAARGS[@]}" "${VENC[@]}" "${VIDEOFILTER[@]}" "${VQUAL_ARG[@]}" "${VQUAL[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${DOWNMIX[@]}" "${MISCARGS[@]}" "$OUTDIR/${OUTPUT[$i]}")
 
 	if "${PROGRAM[@]}" "${ARGS[@]}" <$STDINSRC >$STDOUTDEST 2>$STDERRDEST; then
 	# ffmpeg exited with success, file should have been reencoded
