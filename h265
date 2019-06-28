@@ -1,16 +1,8 @@
 #!/bin/bash
-# run as 'ffmpeg [...] </dev/null >/dev/null 2>/var/log/ffmpeg.log &' for background execution
-# to grab all streams from the first input file, inlcuding attachments, use '-map 0'
-# to grab all attachments from the first input file use '-map 0:t'
-# to encode with 10 bits of colour depth use '-pix_fmt yuv420p10'
-# to strip the final dot and extension from $x use '${x%.*}'
-# if you need to reencode audio use Opus: '-c:a libopus -vbr on -compression_level 10 -b:a 128000' (64kbps per channel)
-# to set all audio streams to 2 channels: '-ac 2' (note this will just copy over FL and FR channels without any mixing)
-# to convert 5.1 sound to stereo for all audio streams with good volume levels: '-af "pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR"'
-# to encode in 720p with blackbanding use '-s hd720 -aspect 16:9' (this for 720p output; aspect adds the black bands)
+# h265 - batch video encoding to HEVC via ffmpeg
 
-##### NB: ffmpeg was programmed by a herd of baboons, so tty options have to be passed as an array instead of a string
 
+##### FUNCTIONS #####
 
 # conveniency function printing help/usage information
 usage() {
@@ -66,157 +58,154 @@ PROGRAM='ffmpeg'
 
 
 # load configuration files
-if [ -f '/etc/h265' ]; then
+if [[ -f '/etc/h265' ]]; then
 	source '/etc/h265'
 fi
-if [ -n "${XDG_CONFIG_HOME}" ]; then
+if [[ -n "${XDG_CONFIG_HOME}" ]]; then
 	USER_CONFIG_PREFIX="${XDG_CONFIG_HOME}"
 else
 	USER_CONFIG_PREFIX="${HOME}/.config"
 fi
-if [ -f "${USER_CONFIG_PREFIX}/h265" ]; then
+if [[ -f "${USER_CONFIG_PREFIX}/h265" ]]; then
 	source "${USER_CONFIG_PREFIX}/h265"
 fi
 
 
 # parse command-line options
 while :; do
-  case "$1" in
-    -h|--help)
-    # print usage information
-      usage
-      exit
-      ;;
-    --map-args)
-    # set stream mapping
-      if [ -n "$2" ]; then
-      # mind the lack of quotes for $2: Bash is a special boy when strings start with -
-        MAPARGS=( $2 )
-        shift
-      else
-        missing_arg_error "--map-args"
-        exit 1
-      fi
-      ;;
-    --misc-args)
-    # arbitrary arguments
-      if [ -n "$2" ]; then
-      # likewise lack of quotes, see above
-        MISCARGS=( $2 )
-        shift
-      else
-        missing_arg_error "--misc-args"
-        exit 1
-      fi
-      ;;
-    --opus)
-    # set audio conversion to Opus
-      AUDIOCODEC=('libopus' '-vbr' 'on' '-compression_level' '10' '-b:a')
-      # check for optional bitrate argument
-      # please note [[ instead of [, it is required for && and regex comparison
-      if [[ -n "$2" && "$2" != -* ]]; then
-        AUDIOCODEC=( "${AUDIOCODEC[@]}" "$2" )
-        shift
-      else
-        AUDIOCODEC=( "${AUDIOCODEC[@]}" "128000" )
-      fi
-      ;;
-    --downmix-stereo)
-    # set downmix of 5.1 surround channels to stereo
-      DOWNMIX=(-ac 2 -af 'pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR')
-      ;;
-    --outdir)
-    # set output directory
-      if [ -n "$2" ]; then
-        OUTDIR="$2"
-        shift
-      else
-        missing_arg_error "--outdir"
-        exit 1
-      fi
-      ;;
-    --wipe-metadata)
-    # start from blank slate metadata in output file (NB will preserve chapters)
-      METADATAARGS=( "${METADATAARGS[@]}" '-map_metadata' '-1'  )
-      # carry over attachment metadata, required if e.g. there are font attachments
-      # please note [[ for &&
-      if [[ -n "$2" && "$2" == "t" ]]; then
-        METADATAARGS=( "${METADATAARGS[@]}" '-map_metadata:s:t' '0:s:t' )
-        shift
-      fi
-      ;;
-    --keep-size)
-    # set if keeping source file dimensions
-      KEEPSIZE="yes"
-      ;;
-    --720p)
-	  if [ -n "$TENEIGHTY" ]; then
-		incompatible_arg_error "--720p" "--1080p"
-		exit 1
-	  fi
-	  if [ -n "$VIDEOFILTER" ]; then
-		VIDEOFILTER="scale=w=-2:h=720,$VIDEOFILTER"
-      else
-		VIDEOFILTER="scale=w=-2:h=720"
-	  fi
-	  SEVENTWENTY=1
-	  ;;
-    --1080p)
-	  if [ -n "$SEVENTWENTY" ]; then
-		  incompatible_arg_error "--1080p" "--720p"
-		  exit 1
-	  fi
-	  if [ -n "$VIDEOFILTER" ]; then
-		VIDEOFILTER="scale=w=-2:h=1080,$VIDEOFILTER"
-	  else
-		VIDEOFILTER="scale=w=-2:h=1080"
-	  fi
-	  TENEIGHTY=1
-	  ;;
-    --quality)
-    # set CRF/QP
-      if [ -n "$2" ]; then
-        VQUAL="$2"
-        shift
-      else
-        mising_arg_error "--quality"
-        exit 1
-      fi
-      ;;
-    --sharpen)
-    # apply unsharp filter
-      if [ -n "$VIDEOFILTER" ]; then
-        VIDEOFILTER="$VIDEOFILTER,unsharp=3:3"
-      else
-        VIDEOFILTER="unsharp=3:3"
-      fi
-      ;;
-	--dry-run)
-		PROGRAM=echo
+	case "$1" in
+	-h|--help)
+	# print usage information
+		usage
+		exit
 		;;
-    -?*)
-    # unrecognized
-      printf 'ERROR: Unkown option "%s"\n' "$1" >&2
-      usage
-      exit 1
-      ;;
-    *)
-    # end of options, leave case statement
-      break
-      ;;
-  esac
-  shift
+	--map-args)
+	# set stream mapping
+		if [[ -n "$2" ]]; then
+			# mind the lack of quotes for $2: Bash is a special boy when strings start with -
+			MAPARGS=( $2 )
+			shift
+		else
+			missing_arg_error "--map-args"
+			exit 1
+		fi
+		;;
+	--misc-args)
+	# arbitrary arguments
+		if [[ -n "$2" ]]; then
+		# likewise lack of quotes, see above
+			MISCARGS=( $2 )
+			shift
+		else
+			missing_arg_error "--misc-args"
+			exit 1
+		fi
+		;;
+	--opus)
+	# set audio conversion to Opus
+		AUDIOCODEC=('libopus' '-vbr' 'on' '-compression_level' '10' '-b:a')
+		# check for optional bitrate argument
+		if [[ -n "$2" && "$2" != -* ]]; then
+			AUDIOCODEC+=( "$2" )
+			shift
+		else
+			AUDIOCODEC+=( "128000" )
+		fi
+		;;
+	--downmix-stereo)
+	# set downmix of 5.1 surround channels to stereo
+		DOWNMIX=(-ac 2 -af 'pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR')
+		;;
+	--outdir)
+	# set output directory
+		if [[ -n "$2" ]]; then
+			OUTDIR="$2"
+			shift
+		else
+			missing_arg_error "--outdir"
+			exit 1
+		fi
+		;;
+	--wipe-metadata)
+	# start from blank slate metadata in output file (NB will preserve chapters)
+		METADATAARGS+=( '-map_metadata' '-1'  )
+		# carry over attachment metadata, required if e.g. there are font attachments
+		if [[ -n "$2" && "$2" == "t" ]]; then
+			METADATAARGS+=( '-map_metadata:s:t' '0:s:t' )
+			shift
+		fi
+		;;
+	--720p)
+	# scale to 720p height
+		if [[ -n "$TENEIGHTY" ]]; then
+			incompatible_arg_error "--720p" "--1080p"
+			exit 1
+		fi
+		if [[ -n "$VIDEOFILTER" ]]; then
+			VIDEOFILTER="scale=w=-2:h=720,$VIDEOFILTER"
+		else
+			VIDEOFILTER="scale=w=-2:h=720"
+		fi
+		SEVENTWENTY=1
+		;;
+	--1080p)
+	# scale to 1080p height
+		if [[ -n "$SEVENTWENTY" ]]; then
+			incompatible_arg_error "--1080p" "--720p"
+			exit 1
+		fi
+		if [[ -n "$VIDEOFILTER" ]]; then
+			VIDEOFILTER="scale=w=-2:h=1080,$VIDEOFILTER"
+		else
+			VIDEOFILTER="scale=w=-2:h=1080"
+		fi
+		TENEIGHTY=1
+		;;
+	--quality)
+	# set CRF/QP
+		if [[ -n "$2" ]]; then
+			VQUAL="$2"
+			shift
+		else
+			mising_arg_error "--quality"
+			exit 1
+		fi
+		;;
+	--sharpen)
+	# apply unsharp filter
+		if [[ -n "$VIDEOFILTER" ]]; then
+			VIDEOFILTER="$VIDEOFILTER,unsharp=3:3"
+		else
+			VIDEOFILTER="unsharp=3:3"
+		fi
+		;;
+	--dry-run)
+	# print ffmpeg commands without running
+	PROGRAM=( 'echo' 'ffmpeg' )
+		;;
+	-?*)
+	# unrecognized
+		printf 'ERROR: Unkown option "%s"\n' "$1" >&2
+		usage
+		exit 1
+		;;
+	*)
+	# end of options, leave case statement
+	  break
+	  ;;
+	esac
+	shift
 done
 
 
 # add parameter in front if we're gonna use it
-if [ -n "$VIDEOFILTER" ]; then
-  VIDEOFILTER=( '-vf' "$VIDEOFILTER")
+if [[ -n "$VIDEOFILTER" ]]; then
+	VIDEOFILTER=( '-vf' "$VIDEOFILTER")
 fi
 
 
 # we always add CRF to video stream metadata
-METADATAARGS=( "${METADATAARGS[@]}" '-metadata:s:v:0' "h265_crf=$VQUAL" )
+METADATAARGS+=( '-metadata:s:v:0' "h265_crf=$VQUAL" )
 
 
 # figure out a task name
@@ -231,30 +220,30 @@ fi
 # figure out if background execution
 if [[ $(ps -o stat= -p $$) == *+* ]]; then
 	# Running in foreground
-  STDINSRC='/dev/stdin'
-  STDOUTDEST='/dev/stdout'
-  STDERRDEST='/dev/stderr'
+	STDINSRC='/dev/stdin'
+	STDOUTDEST='/dev/stdout'
+	STDERRDEST='/dev/stderr'
 else
-  # Running in background
-  STDINSRC='/dev/null'
-  STDOUTDEST='/dev/null'
-  STDERRDEST='ffmpeg.log'
+	# Running in background
+	STDINSRC='/dev/null'
+	STDOUTDEST='/dev/null'
+	STDERRDEST='ffmpeg.log'
 fi
 
 
 ##### WORK #####
 
 # create output directory if it doesn't exist
-if [ ! -d "$OUTDIR" ]; then mkdir -p "$OUTDIR"; fi
+if [[ ! -d "$OUTDIR" ]]; then mkdir -p "$OUTDIR"; fi
 
 # compute list of input and output
 declare -a INPUT
 declare -a OUTPUT
 i=0
 for x in *.@(mkv|mp4|avi|m2ts); do
-  INPUT[$i]="$x"
-  OUTPUT[$i]="${x%.*}.mkv"
-  ((i++))
+	INPUT[$i]="$x"
+	OUTPUT[$i]="${x%.*}.mkv"
+	((i++))
 done
 
 
@@ -263,17 +252,17 @@ successes=( )
 failures=( )
 # execute actual reencoding operations
 i=0
-while [ -n "${INPUT[$i]}" ]; do
-  ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" "${MAPARGS[@]}" "${METADATAARGS[@]}" "${VENC[@]}" "${VIDEOFILTER[@]}" "${VQUAL_ARG[@]}" "${VQUAL[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${DOWNMIX[@]}" "${MISCARGS[@]}" "./$OUTDIR/${OUTPUT[$i]}")
+while [[ -n "${INPUT[$i]}" ]]; do
+	ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" "${MAPARGS[@]}" "${METADATAARGS[@]}" "${VENC[@]}" "${VIDEOFILTER[@]}" "${VQUAL_ARG[@]}" "${VQUAL[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${DOWNMIX[@]}" "${MISCARGS[@]}" "./$OUTDIR/${OUTPUT[$i]}")
 
-  if "$PROGRAM" "${ARGS[@]}" <$STDINSRC >$STDOUTDEST 2>$STDERRDEST; then
-  # ffmpeg exited with success, file should have been reencoded
-    successes=( "${successes[@]}" "${OUTPUT[$i]}" )
-  else
-    # there was a failure of some kind
+	if "${PROGRAM[@]}" "${ARGS[@]}" <$STDINSRC >$STDOUTDEST 2>$STDERRDEST; then
+	# ffmpeg exited with success, file should have been reencoded
+		successes=( "${successes[@]}" "${OUTPUT[$i]}" )
+	else
+	# there was a failure of some kind
 		failures=( "${failures[@]}" "${INPUT[$i]}" )
-  fi
-  ((i++))
+	fi
+	((i++))
 done
 
 
@@ -281,25 +270,25 @@ done
 
 MAILBODY="Reencoding attempt of $taskname completed."
 
-if [ ${#successes[@]} = 0 ]; then
+if [[ ${#successes[@]} = 0 ]]; then
 	MAILBODY="$MAILBODY"$'\nNo file was successfully reencoded.'
 else
 	MAILBODY="$MAILBODY"$'\nThe following files were successfully generated under directory '"$OUTDIR:"
-	MAILBODY="$MAILBODY"$'\n'`printf '%s\n' "${successes[@]}"`
+	MAILBODY=$(printf '%s\n%s\n' "$MAILBODY" "${successes[@]}")
 fi
 MAILBODY="$MAILBODY"$'\n'
 
-if [ ${#failures[@]} = 0 ]; then
+if [[ ${#failures[@]} = 0 ]]; then
 	MAILBODY="$MAILBODY"$'\nAll input files were processed.'
 else
 	MAILBODY="$MAILBODY"$'\nThere was an error processing the following files:'
-	MAILBODY="$MAILBODY"$'\n'`printf '%s\n' "${failures[@]}"`
+	MAILBODY=$(printf '%s\n%s\n' "$MAILBODY" "${failures[@]}")
 fi
 
 # send mail notification
-if [ "$PROGRAM" != 'echo' ] && [ -n "$MAILDEST" ]; then
+if [[ "$PROGRAM" != 'echo' ]] && [[ -n "$MAILDEST" ]]; then
 	mailargs=( '-s' "Reencoding $taskname" )
-	if [ -f 'ffmpeg.log' ]; then
+	if [[ -f 'ffmpeg.log' ]]; then
 		mailargs+=( '-A' 'ffmpeg.log' )
 	fi
 	mailargs+=( "$MAILDEST" )
