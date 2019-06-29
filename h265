@@ -248,8 +248,7 @@ done
 successes=()
 failures=()
 # execute actual reencoding operations
-i=0
-while [[ -n "${INPUT[$i]}" ]]; do
+for i in "${!INPUT[@]}"; do
 	ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" "${MAPARGS[@]}" "${METADATAARGS[@]}" "${VENC[@]}" "${VIDEOFILTER[@]}" "${VQUAL_ARG[@]}" "${VQUAL[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${DOWNMIX[@]}" "${MISCARGS[@]}" "$OUTDIR/${OUTPUT[$i]}")
 
 	if "${PROGRAM[@]}" "${ARGS[@]}" <$STDINSRC >$STDOUTDEST 2>$STDERRDEST; then
@@ -259,7 +258,6 @@ while [[ -n "${INPUT[$i]}" ]]; do
 	# there was a failure of some kind
 		failures+=( "${INPUT[$i]}" )
 	fi
-	((i++))
 done
 
 
