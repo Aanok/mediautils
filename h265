@@ -231,16 +231,15 @@ else
 fi
 
 
-##### WORK #####
+###### WORK ######
 
 # create output directory if it doesn't exist
 if [[ ! -d "$OUTDIR" ]]; then mkdir -p "$OUTDIR"; fi
 
 # compute list of input and output
-INPUT=()
+INPUT=(*.{mkv,mp4,avi,m2ts})
 OUTPUT=()
-for x in *.{mkv,mp4,avi,m2ts}; do
-	INPUT+=( "$x" )
+for x in "${INPUT[@]}"; do
 	OUTPUT+=( "${x%.*}.mkv" )
 done
 
@@ -264,27 +263,28 @@ while [[ -n "${INPUT[$i]}" ]]; do
 done
 
 
-##### EMAIL NOTIFICATION #####
+###### EMAIL NOTIFICATION ######
 
-MAILBODY="Reencoding attempt of $taskname completed."
-
-if [[ ${#successes[@]} = 0 ]]; then
-	MAILBODY="$MAILBODY"$'\nNo file was successfully reencoded.'
-else
-	MAILBODY="$MAILBODY"$'\nThe following files were successfully generated under directory '"$OUTDIR:"
-	MAILBODY=$(printf '%s\n%s\n' "$MAILBODY" "${successes[@]}")
-fi
-MAILBODY="$MAILBODY"$'\n'
-
-if [[ ${#failures[@]} = 0 ]]; then
-	MAILBODY="$MAILBODY"$'\nAll input files were processed.'
-else
-	MAILBODY="$MAILBODY"$'\nThere was an error processing the following files:'
-	MAILBODY=$(printf '%s\n%s\n' "$MAILBODY" "${failures[@]}")
-fi
-
-# send mail notification
 if [[ "$PROGRAM" != 'echo' ]] && [[ -n "$MAILDEST" ]]; then
+	# prepare email body
+	MAILBODY="Reencoding attempt of $taskname completed."
+
+	if [[ ${#successes[@]} = 0 ]]; then
+		MAILBODY="$MAILBODY"$'\nNo file was successfully reencoded.'
+	else
+		MAILBODY="$MAILBODY"$'\nThe following files were successfully generated under directory '"$OUTDIR:"
+		MAILBODY=$(printf '%s\n' "$MAILBODY" "${successes[@]}")
+	fi
+	MAILBODY="$MAILBODY"$'\n'
+
+	if [[ ${#failures[@]} = 0 ]]; then
+		MAILBODY="$MAILBODY"$'\nAll input files were processed.'
+	else
+		MAILBODY="$MAILBODY"$'\nThere was an error processing the following files:'
+		MAILBODY=$(printf '%s\n' "$MAILBODY" "${failures[@]}")
+	fi
+
+	# send actual email
 	mailargs=( '-s' "Reencoding $taskname" )
 	if [[ -f 'ffmpeg.log' ]]; then
 		mailargs+=( '-A' 'ffmpeg.log' )
