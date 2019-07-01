@@ -284,5 +284,5 @@ if [[ "$program" != 'echo' ]] && [[ -n "$maildest" ]]; then
 		mailargs+=( '-A' 'ffmpeg.log' )
 	fi
 	mailargs+=( "$maildest" )
-	echo "$mailbody" | mail "${mailargs[@]}" >$stdoutdest 2>$stderrdest
+	mail "${mailargs[@]}" >"$stdoutdest" 2>"$stderrdest" <<< "$mailbody"
 fi
