@@ -6,7 +6,7 @@
 
 # conveniency function printing help/usage information
 usage() {
-	echo "Usage:"
+	echo 'Usage:'
 	echo "$0
 	--map-args <stream mapping options> (default: -map 0) (please pass them in single quotes)
 	--opus [bitrate]
@@ -36,16 +36,16 @@ incompatible_arg_error() {
 # set defaults
 
 # output DIRECTORY
-outdir=reencode
+outdir='reencode'
 
 # STREAM MAPPING
 mapargs=('-map' '0')
 
 # AUDIO CODEC
-audiocodec="copy"
+audiocodec='copy'
 
 # VIDEO QUALITY
-vqual="20"
+vqual='20'
 
 # ARGUMENT vqual IS PASSED TO
 vqual_arg='-crf'
@@ -58,17 +58,13 @@ program='ffmpeg'
 
 
 # load configuration files
-if [[ -f '/etc/h265' ]]; then
-	source '/etc/h265'
-fi
+[[ -f '/etc/h265' ]] && source '/etc/h265'
 if [[ -n "${XDG_CONFIG_HOME}" ]]; then
 	user_config_prefix="${XDG_CONFIG_HOME}"
 else
 	user_config_prefix="${HOME}/.config"
 fi
-if [[ -f "${user_config_prefix}/h265" ]]; then
-	source "${user_config_prefix}/h265"
-fi
+[[ -f "${user_config_prefix}/h265" ]] && source "${user_config_prefix}/h265"
 
 
 # parse command-line options
@@ -86,7 +82,7 @@ while :; do
 			mapargs=( $2 )
 			shift
 		else
-			missing_arg_error "--map-args"
+			missing_arg_error '--map-args'
 			exit 1
 		fi
 		;;
@@ -97,7 +93,7 @@ while :; do
 			miscargs=( $2 )
 			shift
 		else
-			missing_arg_error "--misc-args"
+			missing_arg_error '--misc-args'
 			exit 1
 		fi
 		;;
@@ -105,11 +101,11 @@ while :; do
 	# set audio conversion to Opus
 		audiocodec=('libopus' '-vbr' 'on' '-compression_level' '10' '-b:a')
 		# check for optional bitrate argument
-		if [[ -n "$2" && "$2" != -* ]]; then
+		if [[ "$2" != -* ]]; then
 			audiocodec+=( "$2" )
 			shift
 		else
-			audiocodec+=( "128000" )
+			audiocodec+=( '128000' )
 		fi
 		;;
 	--downmix-stereo)
@@ -122,7 +118,7 @@ while :; do
 			outdir="$2"
 			shift
 		else
-			missing_arg_error "--outdir"
+			missing_arg_error '--outdir'
 			exit 1
 		fi
 		;;
@@ -130,7 +126,7 @@ while :; do
 	# start from blank slate metadata in output file (NB will preserve chapters)
 		metadataargs+=( '-map_metadata' '-1'  )
 		# carry over attachment metadata, required if e.g. there are font attachments
-		if [[ -n "$2" && "$2" == "t" ]]; then
+		if [[ "$2" == "t" ]]; then
 			metadataargs+=( '-map_metadata:s:t' '0:s:t' )
 			shift
 		fi
@@ -138,26 +134,26 @@ while :; do
 	--720p)
 	# scale to 720p height
 		if [[ -n "$teneighty" ]]; then
-			incompatible_arg_error "--720p" "--1080p"
+			incompatible_arg_error '--720p' '--1080p'
 			exit 1
 		fi
 		if [[ -n "$videofilter" ]]; then
 			videofilter="scale=w=-2:h=720,$videofilter"
 		else
-			videofilter="scale=w=-2:h=720"
+			videofilter='scale=w=-2:h=720'
 		fi
 		seventwenty=1
 		;;
 	--1080p)
 	# scale to 1080p height
 		if [[ -n "$seventwenty" ]]; then
-			incompatible_arg_error "--1080p" "--720p"
+			incompatible_arg_error '--1080p' '--720p'
 			exit 1
 		fi
 		if [[ -n "$videofilter" ]]; then
 			videofilter="scale=w=-2:h=1080,$videofilter"
 		else
-			videofilter="scale=w=-2:h=1080"
+			videofilter='scale=w=-2:h=1080'
 		fi
 		teneighty=1
 		;;
@@ -167,7 +163,7 @@ while :; do
 			vqual="$2"
 			shift
 		else
-			mising_arg_error "--quality"
+			mising_arg_error '--quality'
 			exit 1
 		fi
 		;;
@@ -176,7 +172,7 @@ while :; do
 		if [[ -n "$videofilter" ]]; then
 			videofilter="$videofilter,unsharp=3:3"
 		else
-			videofilter="unsharp=3:3"
+			videofilter='unsharp=3:3'
 		fi
 		;;
 	--dry-run)
