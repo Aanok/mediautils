@@ -230,59 +230,54 @@ fi
 ###### WORK ######
 
 # create output directory if it doesn't exist
-if [[ ! -d "$outdir" ]]; then mkdir -p "$outdir"; fi
+[[ ! -d "$outdir" ]] && mkdir -p "$outdir"
 
-# compute list of input and output
-input=(*.{mkv,mp4,avi,m2ts})
-output=()
-for x in "${input[@]}"; do
-	output+=( "${x%.*}.mkv" )
-done
+# nullglob means unmatched globs expand to null
+shopt -s nullglob
 
-
+# execute actual reencoding operations
 # we'll keep track of successes and failures
 successes=()
 failures=()
-# execute actual reencoding operations
-for i in "${!input[@]}"; do
-	args=(-n -i "${input[$i]}" "${mapargs[@]}" "${metadataargs[@]}" "${venc[@]}" "${videofilter[@]}" "${vqual_arg[@]}" "${vqual[@]}" -c:a "${audiocodec[@]}" -c:s copy "${downmix[@]}" "${miscargs[@]}" "$outdir/${output[$i]}")
+for infile in *.{mkv,mp4,avi,m2ts}; do
+	outfile="${infile%.*}.mkv"
+	args=(-n -i "$infile" "${mapargs[@]}" "${metadataargs[@]}" "${venc[@]}" "${videofilter[@]}" "${vqual_arg[@]}" "${vqual[@]}" -c:a "${audiocodec[@]}" -c:s copy "${downmix[@]}" "${miscargs[@]}" "$outdir/$outfile")
 
 	if "${program[@]}" "${args[@]}" <$stdinsrc >$stdoutdest 2>$stderrdest; then
 	# ffmpeg exited with success, file should have been reencoded
-		successes+=( "${output[$i]}" )
+		successes+=( "$outfile" )
 	else
 	# there was a failure of some kind
-		failures+=( "${input[$i]}" )
+		failures+=( "$infile" )
 	fi
 done
 
 
 ###### EMAIL NOTIFICATION ######
 
-if [[ "$program" != 'echo' ]] && [[ -n "$maildest" ]]; then
-	# prepare email body
-	mailbody="Reencoding attempt of $taskname completed."
+# exit if dry-run or mail notification not requested
+[[ "$program" = 'echo' || -z "$maildest" ]] && exit
 
-	if [[ ${#successes[@]} = 0 ]]; then
-		mailbody="$mailbody"$'\nNo file was successfully reencoded.'
-	else
-		mailbody="$mailbody"$'\nThe following files were successfully generated under directory '"$outdir:"
-		mailbody=$(printf '%s\n' "$mailbody" "${successes[@]}")
-	fi
-	mailbody="$mailbody"$'\n'
+# prepare email body
+mailbody="Reencoding attempt of $taskname completed."
 
-	if [[ ${#failures[@]} = 0 ]]; then
-		mailbody="$mailbody"$'\nAll input files were processed.'
-	else
-		mailbody="$mailbody"$'\nThere was an error processing the following files:'
-		mailbody=$(printf '%s\n' "$mailbody" "${failures[@]}")
-	fi
-
-	# send actual email
-	mailargs=( '-s' "Reencoding $taskname" )
-	if [[ -f 'ffmpeg.log' ]]; then
-		mailargs+=( '-A' 'ffmpeg.log' )
-	fi
-	mailargs+=( "$maildest" )
-	mail "${mailargs[@]}" >"$stdoutdest" 2>"$stderrdest" <<< "$mailbody"
+if [[ ${#successes[@]} = 0 ]]; then
+	mailbody+=$'\nNo file was successfully reencoded.'
+else
+	mailbody+=$'\nThe following files were successfully generated under directory '"$outdir:"
+	mailbody+="$(printf '%s\n' ${successes[@]})"
 fi
+mailbody+=$'\n'
+
+if [[ ${#failures[@]} = 0 ]]; then
+	mailbody+=$'\nAll input files were processed.'
+else
+	mailbody+=$'\nThere was an error processing the following files:'
+	mailbody+="$(printf '%s\n' ${failures[@]})"
+fi
+
+# send actual email
+mailargs=( '-s' "Reencoding $taskname" )
+[[ -f 'ffmpeg.log' ]] && mailargs+=( '-A' 'ffmpeg.log' )
+mailargs+=( "$maildest" )
+mail "${mailargs[@]}" >"$stdoutdest" 2>"$stderrdest" <<< "$mailbody"
