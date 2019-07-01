@@ -1,12 +1,11 @@
 #!/bin/bash
-# POSIX
 
 # conveniency function printing help/usage information
 usage() {
-	echo "Usage:"
-	echo " $0 [ --outdir <output directory> | -o <output directory> ] [ --mail <email address> | -m <email address> ] [ --if-worthwhile | -w ] [ <input directory> ]"
-	echo " $0 [ --replace | -r ] [ --mail <email address> | -m <email address> ] [ --if-worthwhile | -w ] [ <input directory> ]"
-	echo " $0 [ --help | -h ]"
+	echo "Usage:
+	$0 [--outdir <output directory> | -o <output directory> ] [ --mail <email address> | -m <email address> ] [ --if-worthwhile | -w ] [ <input directory> ]
+	$0 [--replace | -r ] [ --mail <email address> | -m <email address> ] [ --if-worthwhile | -w ] [ <input directory> ]
+	$0 [--help | -h ]"
 }
 
 # convenciency function printing an error message for when --outdir and --replace are both set
@@ -19,13 +18,25 @@ missing_arg_error() {
 	printf 'ERROR: "%s" requires a non-empty option argument.\n' "$1" >&2
 }
 
+# as the name says; $1 is the prefix, $2 the string
+# ADHOC: in our use case $1 is a folder and $2 a file somewhere under it, both in canonical form
+# so we will want to strip one character "too many" as it will be an unwanted /
+# NB i would gladly use the ${x#y} bashism, but it breaks when the filenames have weird characters :)))))))
+strip_prefix_from_string() {
+	local i=0
+ 	local prefix="$1"
+ 	local string="$2"
+	while [[ "${prefix:$i:1}" == "${string:$i:1}" ]]; do ((i++)); done
+	((i++)) # SPECIAL: will kill leftover leading /
+	echo "${string:$i}"
+}
 
 
 ##### PRELIMINARIES #####
 
 # parse command-line options
 while :; do
-	case $1 in
+	case "$1" in
 		-h|--help)
 		# print help
 			usage
@@ -33,12 +44,13 @@ while :; do
 			;;
 		-o|--outdir)
 		# set outdir
-			if [ -n "$REPLACE" ]; then
+			if [[ -n "$replace" ]]; then
 				outdir_replace_error
 				exit 1
 			fi
-			if [ -n "$2" ]; then
-				OUTDIR="$2"
+			if [[ -n "$2" ]]; then
+				# canonicalize path (i.e. ensure it's absolute)
+				outdir="$(readlink -f $2)"
 				shift
 			else
 				missing_arg_error "--outdir"
@@ -47,20 +59,20 @@ while :; do
 			;;
 		-r|--replace)
 		# program will replace input files with output instead of putting them in a separate folder
-			if [ -n "$OUTDIR" ]; then
+			if [[ -n "$outdir" ]]; then
 				outdir_replace_error
 				exit 1
 			fi
-			REPLACE=1
+			replace=1
 			;;
 		-w|--if-worthwhile)
 		# program will process files only if their (average) birate is above 128kbps
-			IFWORTHWHILE=1
+			ifworthwhile=1
 			;;
 		-m|--mail)
 		# program will send email notification
-			if [ -n "$2" ]; then
-				EMAIL="$2"
+			if [[ -n "$2" ]]; then
+				email="$2"
 				shift
 			else
 				missing_arg_error "--mail"
@@ -82,100 +94,87 @@ while :; do
 done
 
 # read file search root directory if provided, default to PWD otherwise
-if [ -z "$1" ]; then
-	INDIR="$PWD"
+if [[ -z "$1" ]]; then
+	indir="$PWD"
 else
-	INDIR="$1"
+	# make sure it's canonicalized!
+	indir="$(readlink -f $1)"
 fi
 
-# figure out OUTDIR and prepare it in the filesystem if necessary
-if [ -n "$REPLACE" ]; then
+# figure out outdir and prepare it in the filesystem if necessary
+if [[ -n "$replace" ]]; then
 	# running in replace mode
-	OUTDIR="$INDIR"
+	outdir="$indir"
 else
 	# running in output-drectory mode
-	# default to $INDIR/opus if --outdir wasn't set
-	if [ -z "$OUTDIR" ]; then OUTDIR="$INDIR/opus"; fi
+	# default to $indir/opus if --outdir wasn't set
+	[[ -z "$outdir" ]] && outdir="$indir/opus"
 	# create the output directory if it doesn't exist
-	if [ ! -d "$OUTDIR" ]; then mkdir "$OUTDIR"; fi
+	mkdir -p "$outdir"
 fi
-
-
 
 
 ##### WORK #####
 
 # enable globstar for recursive file search
-shopt -s globstar
-# enable extglob for better pattern matching
-shopt -s extglob
-
-# compute list of input and output
-declare -a INPUT
-declare -a OUTPUT
-i=0
-for x in "$INDIR"/**/*.@(flac|mp3|wav|mpc|wma|m4a|mp4|ape); do
-	# only accept file candidate if worthwhile
-	if [[ -z $IFWORTHWHILE ]] || [[ $(ffprobe "$x" 2>&1 | grep Audio: | sed 's/.*, \([0-9]*\) kb\/s.*/\1/') > 128 ]]; then
-		INPUT[$i]="$x"
-		y="${x##$INDIR/}"
-		y="${y%.*}.opus"
-		OUTPUT[$i]="$y"
-		((i++))
-	fi
-done
+shopt -s globstar nullglob
 
 # we'll keep track of which file we manage to reencode and which fail
 successes=( )
 failures=( )
-# execute actual reencoding operations
-i=0
-while [ -n  "${INPUT[$i]}" ]; do
-	# check for output subdirectory, create it if it doesn't exist
-	# output subdirectory is basically the path of the output file, minus its basename
-  # so we match everything there is up to the last "/", or an empty string if there isn't one (i.e. the file is in the base dir)
-  targetdir="$(echo ${OUTPUT[$i]} | sed -n 's/\(^.*\)\(\/.*\)/\1/p')"
-	if [ -n "$targetdir" ] && [ ! -d "$targetdir" ]; then mkdir "$targetdir"; fi
-	if ffmpeg -n -i "${INPUT[$i]}" -map 0:a -c:a libopus -vbr on -compression_level 10 -b:a 128000 "$OUTDIR/${OUTPUT[$i]}"; then
-		# ffmpeg exited with success, file should have been reencoded
-		successes=( "${successes[@]}" "${OUTPUT[$i]}" )
+# compute list of input and output
+for infile in "$indir"/**/*.{flac,mp3,wav,mpc,wma,m4a,mp4,ape}; do
+	# only accept file candidate if worthwhile (TODO: fix grep so we skip sed)
+	if [[ -z "$ifworthwhile" || $(ffprobe "$x" 2>&1 | grep Audio: | sed 's/.*, \([0-9]*\) kb\/s.*/\1/') > 128 ]]; then
+		# get target location relative to $indir
+		outfile=$(strip_prefix_from_string "$indir" "$infile")
+		outfile="${outfile%.*}.opus"
+		# get target folder as relative to $indir so we can recreate it under $outdir
+		if grep -q '/' <<< "$outfile"; then 
+			targetdir="${outfile%/*}"
+		else
+			targetdir=''
+		fi
+		mkdir -p "$outdir/$targetdir"
 
-		# IMPORTANT! if running in replace mode, delete the input file
-		if [ -n "$REPLACE" ]; then rm "${INPUT[$i]}"; fi
-	else
-		# there was a failure of some kind
-		failures=( "${failures[@]}" "${INPUT[$i]}" )
+		# actual reencode
+		[[ -n "$targetdir" ]] && mkdir -p "$targetdir"
+		if ffmpeg -n -i "$infile" -map 0:a -c:a libopus -vbr on -compression_level 10 -b:a 128000 "$outdir/$outfile"; then
+			# ffmpeg exited with success, file should have been reencoded
+			successes+=( "$outfile" )
+
+			# IMPORTANT! if running in replace mode, delete the input file
+			[[ -n "$replace" ]] && rm "$infile"
+		else
+			# there was a failure of some kind
+			failures+=( "$infile" )
+		fi
 	fi
-	((i++))
 done
-echo 'done'
-exit
-
 
 
 ##### EMAIL NOTIFICATION #####
 
-if [ -z "$EMAIL" ];
-	# email notification not requested, exit peacefully
-	exit
-fi
+# exit peacefully if not requested
+[[ -z "$email" ]] && exit
 
 # setup body
-mailbody="Reencoding $INDIR in Opus: done."
+mailbody="Reencoding $indir in Opus: done."
 
-if [ ${#successes[@]} = 0 ]; then
-	mailbody="$mailbody"$'\nNo file was successfully reencoded.'
+if [[ "${#successes[@]}" = 0 ]]; then
+	mailbody+=$'\nNo file was successfully reencoded.'
 else
-	mailbody="$mailbody"$'\nThe following files were successfully generated under directory '"$OUTDIR:"
-	mailbody="$mailbody"$'\n'`printf '%s\n' "${successes[@]}"`$'\n'
+	mailbody+=$'\nThe following files were successfully generated under directory '"$outdir:"
+	mailbody+=$'\n'"$(printf '%s\n' ${successes[@]})"
 fi
+mailbody+=$'\n'
 
-if [ ${#failures[@]} = 0 ]; then
-        mailbody="$mailbody"$'\nAll input files were processed.'
+if [[ "${#failures[@]}" = 0 ]]; then
+	mailbody+=$'\nAll input files were processed.'
 else
-        mailbody="$mailbody"$'\n There was an error processing the following files:'
-        mailbody="$mailbody"$'\n'`printf '%s\n' "${failures[@]}"`
+	mailbody+=$'\n There was an error processing the following files:'
+	mailbody+=$'\n'"$(printf '%s\n' ${failures[@]})"
 fi
 
 # send
-echo "$mailbody" | mail -s "Reencoding ${INDIR##*/} in Opus" "$EMAIL"
+mail -s "Reencoding ${indir##*/} in Opus" "$email" <<< "$mailbody"

@@ -4,6 +4,7 @@
 
 ### audio2opus:
 * ffmpeg
+* coreutils
 
 ### cuesplit:
 * shntool
@@ -12,7 +13,7 @@
 * ffmpeg
 * monkeys-audio for ape/cue (from deb-multimedia repository)
 
-These are all Debian packages.
+These are all Debian packages. Please note the scripts strictly require Bash.
 
 # TODO
 * Improve --map-args --metadata-args interface of h265
