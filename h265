@@ -35,26 +35,26 @@ incompatible_arg_error() {
 
 # set defaults
 
-# OUTPUT DIRECTORY
-OUTDIR=reencode
+# output DIRECTORY
+outdir=reencode
 
 # STREAM MAPPING
-MAPARGS=('-map' '0')
+mapargs=('-map' '0')
 
 # AUDIO CODEC
-AUDIOCODEC="copy"
+audiocodec="copy"
 
 # VIDEO QUALITY
-VQUAL="20"
+vqual="20"
 
-# ARGUMENT VQUAL IS PASSED TO
-VQUAL_ARG='-crf'
+# ARGUMENT vqual IS PASSED TO
+vqual_arg='-crf'
 
 # VIDEO ENCODER
-VENC=('-pix_fmt' 'yuv420p10' '-c:v' 'libx265' '-preset' 'slow')
+venc=('-pix_fmt' 'yuv420p10' '-c:v' 'libx265' '-preset' 'slow')
 
 # FFMPEG EXECUTABLE
-PROGRAM='ffmpeg'
+program='ffmpeg'
 
 
 # load configuration files
@@ -62,12 +62,12 @@ if [[ -f '/etc/h265' ]]; then
 	source '/etc/h265'
 fi
 if [[ -n "${XDG_CONFIG_HOME}" ]]; then
-	USER_CONFIG_PREFIX="${XDG_CONFIG_HOME}"
+	user_config_prefix="${XDG_CONFIG_HOME}"
 else
-	USER_CONFIG_PREFIX="${HOME}/.config"
+	user_config_prefix="${HOME}/.config"
 fi
-if [[ -f "${USER_CONFIG_PREFIX}/h265" ]]; then
-	source "${USER_CONFIG_PREFIX}/h265"
+if [[ -f "${user_config_prefix}/h265" ]]; then
+	source "${user_config_prefix}/h265"
 fi
 
 
@@ -83,7 +83,7 @@ while :; do
 	# set stream mapping
 		if [[ -n "$2" ]]; then
 			# mind the lack of quotes for $2: Bash is a special boy when strings start with -
-			MAPARGS=( $2 )
+			mapargs=( $2 )
 			shift
 		else
 			missing_arg_error "--map-args"
@@ -94,7 +94,7 @@ while :; do
 	# arbitrary arguments
 		if [[ -n "$2" ]]; then
 		# likewise lack of quotes, see above
-			MISCARGS=( $2 )
+			miscargs=( $2 )
 			shift
 		else
 			missing_arg_error "--misc-args"
@@ -103,23 +103,23 @@ while :; do
 		;;
 	--opus)
 	# set audio conversion to Opus
-		AUDIOCODEC=('libopus' '-vbr' 'on' '-compression_level' '10' '-b:a')
+		audiocodec=('libopus' '-vbr' 'on' '-compression_level' '10' '-b:a')
 		# check for optional bitrate argument
 		if [[ -n "$2" && "$2" != -* ]]; then
-			AUDIOCODEC+=( "$2" )
+			audiocodec+=( "$2" )
 			shift
 		else
-			AUDIOCODEC+=( "128000" )
+			audiocodec+=( "128000" )
 		fi
 		;;
 	--downmix-stereo)
 	# set downmix of 5.1 surround channels to stereo
-		DOWNMIX=(-ac 2 -af 'pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR')
+		downmix=(-ac 2 -af 'pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR')
 		;;
 	--outdir)
 	# set output directory
 		if [[ -n "$2" ]]; then
-			OUTDIR="$2"
+			outdir="$2"
 			shift
 		else
 			missing_arg_error "--outdir"
@@ -128,43 +128,43 @@ while :; do
 		;;
 	--wipe-metadata)
 	# start from blank slate metadata in output file (NB will preserve chapters)
-		METADATAARGS+=( '-map_metadata' '-1'  )
+		metadataargs+=( '-map_metadata' '-1'  )
 		# carry over attachment metadata, required if e.g. there are font attachments
 		if [[ -n "$2" && "$2" == "t" ]]; then
-			METADATAARGS+=( '-map_metadata:s:t' '0:s:t' )
+			metadataargs+=( '-map_metadata:s:t' '0:s:t' )
 			shift
 		fi
 		;;
 	--720p)
 	# scale to 720p height
-		if [[ -n "$TENEIGHTY" ]]; then
+		if [[ -n "$teneighty" ]]; then
 			incompatible_arg_error "--720p" "--1080p"
 			exit 1
 		fi
-		if [[ -n "$VIDEOFILTER" ]]; then
-			VIDEOFILTER="scale=w=-2:h=720,$VIDEOFILTER"
+		if [[ -n "$videofilter" ]]; then
+			videofilter="scale=w=-2:h=720,$videofilter"
 		else
-			VIDEOFILTER="scale=w=-2:h=720"
+			videofilter="scale=w=-2:h=720"
 		fi
-		SEVENTWENTY=1
+		seventwenty=1
 		;;
 	--1080p)
 	# scale to 1080p height
-		if [[ -n "$SEVENTWENTY" ]]; then
+		if [[ -n "$seventwenty" ]]; then
 			incompatible_arg_error "--1080p" "--720p"
 			exit 1
 		fi
-		if [[ -n "$VIDEOFILTER" ]]; then
-			VIDEOFILTER="scale=w=-2:h=1080,$VIDEOFILTER"
+		if [[ -n "$videofilter" ]]; then
+			videofilter="scale=w=-2:h=1080,$videofilter"
 		else
-			VIDEOFILTER="scale=w=-2:h=1080"
+			videofilter="scale=w=-2:h=1080"
 		fi
-		TENEIGHTY=1
+		teneighty=1
 		;;
 	--quality)
 	# set CRF/QP
 		if [[ -n "$2" ]]; then
-			VQUAL="$2"
+			vqual="$2"
 			shift
 		else
 			mising_arg_error "--quality"
@@ -173,15 +173,15 @@ while :; do
 		;;
 	--sharpen)
 	# apply unsharp filter
-		if [[ -n "$VIDEOFILTER" ]]; then
-			VIDEOFILTER="$VIDEOFILTER,unsharp=3:3"
+		if [[ -n "$videofilter" ]]; then
+			videofilter="$videofilter,unsharp=3:3"
 		else
-			VIDEOFILTER="unsharp=3:3"
+			videofilter="unsharp=3:3"
 		fi
 		;;
 	--dry-run)
 	# print ffmpeg commands without running
-	PROGRAM=( 'echo' 'ffmpeg' )
+	program=( 'echo' 'ffmpeg' )
 		;;
 	-?*)
 	# unrecognized
@@ -199,13 +199,13 @@ done
 
 
 # add parameter in front if we're gonna use it
-if [[ -n "$VIDEOFILTER" ]]; then
-	VIDEOFILTER=( '-vf' "$VIDEOFILTER")
+if [[ -n "$videofilter" ]]; then
+	videofilter=( '-vf' "$videofilter")
 fi
 
 
 # we always add CRF to video stream metadata
-METADATAARGS+=( '-metadata:s:v:0' "h265_crf=$VQUAL" )
+metadataargs+=( '-metadata:s:v:0' "h265_crf=$vqual" )
 
 
 # figure out a task name
@@ -220,27 +220,27 @@ fi
 # figure out if background execution
 if [[ $(ps -o stat= -p $$) == *+* ]]; then
 	# Running in foreground
-	STDINSRC='/dev/stdin'
-	STDOUTDEST='/dev/stdout'
-	STDERRDEST='/dev/stderr'
+	stdinsrc='/dev/stdin'
+	stdoutdest='/dev/stdout'
+	stderrdest='/dev/stderr'
 else
-	# Running in background
-	STDINSRC='/dev/null'
-	STDOUTDEST='/dev/null'
-	STDERRDEST='ffmpeg.log'
+	# Running in backgroun
+	stdinsrc='/dev/null'
+	stdoutdest='/dev/null'
+	stderrdest='ffmpeg.log'
 fi
 
 
 ###### WORK ######
 
 # create output directory if it doesn't exist
-if [[ ! -d "$OUTDIR" ]]; then mkdir -p "$OUTDIR"; fi
+if [[ ! -d "$outdir" ]]; then mkdir -p "$outdir"; fi
 
 # compute list of input and output
-INPUT=(*.{mkv,mp4,avi,m2ts})
-OUTPUT=()
-for x in "${INPUT[@]}"; do
-	OUTPUT+=( "${x%.*}.mkv" )
+input=(*.{mkv,mp4,avi,m2ts})
+output=()
+for x in "${input[@]}"; do
+	output+=( "${x%.*}.mkv" )
 done
 
 
@@ -248,38 +248,38 @@ done
 successes=()
 failures=()
 # execute actual reencoding operations
-for i in "${!INPUT[@]}"; do
-	ARGS=(-n -i "${INPUT[$i]}" "${SIZE[@]}" "${MAPARGS[@]}" "${METADATAARGS[@]}" "${VENC[@]}" "${VIDEOFILTER[@]}" "${VQUAL_ARG[@]}" "${VQUAL[@]}" -c:a "${AUDIOCODEC[@]}" -c:s copy "${DOWNMIX[@]}" "${MISCARGS[@]}" "$OUTDIR/${OUTPUT[$i]}")
+for i in "${!input[@]}"; do
+	args=(-n -i "${input[$i]}" "${mapargs[@]}" "${metadataargs[@]}" "${venc[@]}" "${videofilter[@]}" "${vqual_arg[@]}" "${vqual[@]}" -c:a "${audiocodec[@]}" -c:s copy "${downmix[@]}" "${miscargs[@]}" "$outdir/${output[$i]}")
 
-	if "${PROGRAM[@]}" "${ARGS[@]}" <$STDINSRC >$STDOUTDEST 2>$STDERRDEST; then
+	if "${program[@]}" "${args[@]}" <$stdinsrc >$stdoutdest 2>$stderrdest; then
 	# ffmpeg exited with success, file should have been reencoded
-		successes+=( "${OUTPUT[$i]}" )
+		successes+=( "${output[$i]}" )
 	else
 	# there was a failure of some kind
-		failures+=( "${INPUT[$i]}" )
+		failures+=( "${input[$i]}" )
 	fi
 done
 
 
 ###### EMAIL NOTIFICATION ######
 
-if [[ "$PROGRAM" != 'echo' ]] && [[ -n "$MAILDEST" ]]; then
+if [[ "$program" != 'echo' ]] && [[ -n "$maildest" ]]; then
 	# prepare email body
-	MAILBODY="Reencoding attempt of $taskname completed."
+	mailbody="Reencoding attempt of $taskname completed."
 
 	if [[ ${#successes[@]} = 0 ]]; then
-		MAILBODY="$MAILBODY"$'\nNo file was successfully reencoded.'
+		mailbody="$mailbody"$'\nNo file was successfully reencoded.'
 	else
-		MAILBODY="$MAILBODY"$'\nThe following files were successfully generated under directory '"$OUTDIR:"
-		MAILBODY=$(printf '%s\n' "$MAILBODY" "${successes[@]}")
+		mailbody="$mailbody"$'\nThe following files were successfully generated under directory '"$outdir:"
+		mailbody=$(printf '%s\n' "$mailbody" "${successes[@]}")
 	fi
-	MAILBODY="$MAILBODY"$'\n'
+	mailbody="$mailbody"$'\n'
 
 	if [[ ${#failures[@]} = 0 ]]; then
-		MAILBODY="$MAILBODY"$'\nAll input files were processed.'
+		mailbody="$mailbody"$'\nAll input files were processed.'
 	else
-		MAILBODY="$MAILBODY"$'\nThere was an error processing the following files:'
-		MAILBODY=$(printf '%s\n' "$MAILBODY" "${failures[@]}")
+		mailbody="$mailbody"$'\nThere was an error processing the following files:'
+		mailbody=$(printf '%s\n' "$mailbody" "${failures[@]}")
 	fi
 
 	# send actual email
@@ -287,6 +287,6 @@ if [[ "$PROGRAM" != 'echo' ]] && [[ -n "$MAILDEST" ]]; then
 	if [[ -f 'ffmpeg.log' ]]; then
 		mailargs+=( '-A' 'ffmpeg.log' )
 	fi
-	mailargs+=( "$MAILDEST" )
-	echo "$MAILBODY" | mail "${mailargs[@]}" >$STDOUTDEST 2>$STDERRDEST
+	mailargs+=( "$maildest" )
+	echo "$mailbody" | mail "${mailargs[@]}" >$stdoutdest 2>$stderrdest
 fi
