@@ -30,8 +30,17 @@ incompatible_arg_error() {
 	printf 'ERROR: option "%s" is incompatible with "%s".\n' "$1" "$2" >&2
 }
 
+# user abort in case of SIGINT (see trap below)
+user_abort() {
+	echo "SIGINT caught, aborting." >&2
+	exit 2
+}
+
 
 ##### PRELIMINARIES #####
+
+# set SIGINT trap
+trap user_abort SIGINT
 
 # set defaults
 
