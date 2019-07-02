@@ -31,8 +31,17 @@ strip_prefix_from_string() {
 	echo "${string:$i}"
 }
 
+# abort in case of SIGINT (see trap below)
+user_abort() {
+	echo "SIGINT caught. Aborting process." >&2
+	exit 2
+}
+
 
 ##### PRELIMINARIES #####
+
+# set SIGINT trap
+trap user_abort SIGINT
 
 # parse command-line options
 while :; do
