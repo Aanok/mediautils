@@ -132,21 +132,23 @@ shopt -s globstar nullglob
 successes=( )
 failures=( )
 # put regex in variable. using it directly with quotes would cast it to a string
-regex='.*Audio.* ([0-9]+) kb/s'
+regex_w='.*Audio.* ([0-9]+) kb/s'
+regex_dir='.*/.*'
 for infile in "$indir"/**/*.{flac,mp3,wav,mpc,wma,m4a,mp4,ape}; do
 	# only accept file candidate if worthwhile
-	if [[ -z "$ifworthwhile" || ( $(ffprobe "$infile" 2>&1) =~ $regex && "${BASH_REMATCH[1]}" > 128 ) ]]; then
+	if [[ -z "$ifworthwhile" || ( $(ffprobe "$infile" 2>&1) =~ $regex_w && "${BASH_REMATCH[1]}" > 128 ) ]]; then
 		# get target location relative to $indir
 		outfile=$(strip_prefix_from_string "$indir" "$infile")
 		outfile="${outfile%.*}.opus"
 		# get target folder as relative to $indir so we can recreate it under $outdir
-		if grep -q '/' <<< "$outfile"; then 
+		if [[ "$outfile" =~ $regex_dir ]]; then
 			targetdir="${outfile%/*}"
 		else
 			targetdir=''
 		fi
 		mkdir -p "$outdir/$targetdir"
 
+		continue
 		# actual reencode
 		[[ -n "$targetdir" ]] && mkdir -p "$targetdir"
 		if ffmpeg -n -i "$infile" -map 0:a -c:a libopus -vbr on -compression_level 10 -b:a 128000 "$outdir/$outfile"; then
