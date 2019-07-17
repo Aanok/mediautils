@@ -1,4 +1,5 @@
 #!/bin/bash
+# audio2opus - batch audio encoding to Opus via ffmpeg
 
 # conveniency function printing help/usage information
 usage() {
