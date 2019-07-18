@@ -149,7 +149,6 @@ for infile in "$indir"/**/*.{flac,mp3,wav,mpc,wma,m4a,mp4,ape}; do
 		fi
 		mkdir -p "$outdir/$targetdir"
 
-		continue
 		# actual reencode
 		[[ -n "$targetdir" ]] && mkdir -p "$targetdir"
 		if ffmpeg -n -i "$infile" -map 0:a -c:a libopus -vbr on -compression_level 10 -b:a 128000 "$outdir/$outfile"; then
