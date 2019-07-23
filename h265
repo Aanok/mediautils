@@ -77,7 +77,7 @@ fi
 
 
 # parse command-line options
-while :; do
+while [[ -n "$1" ]]; do
 	case "$1" in
 	-h|--help)
 	# print usage information
@@ -188,16 +188,12 @@ while :; do
 	# print ffmpeg commands without running
 	program=( 'echo' 'ffmpeg' )
 		;;
-	-?*)
+	*)
 	# unrecognized
-		printf 'ERROR: Unkown option "%s"\n' "$1" >&2
+		printf 'ERROR: Unkown argument "%s"\n' "$1" >&2
 		usage
 		exit 1
 		;;
-	*)
-	# end of options, leave case statement
-	  break
-	  ;;
 	esac
 	shift
 done
