@@ -270,7 +270,7 @@ if [[ ${#successes[@]} = 0 ]]; then
 	mailbody+=$'\nNo file was successfully reencoded.'
 else
 	mailbody+=$'\nThe following files were successfully generated under directory '"$outdir:"
-	mailbody+="$(printf '%s\n' ${successes[@]})"
+	mailbody+="$(printf '%s\n' "${successes[@]}")"
 fi
 mailbody+=$'\n'
 
@@ -278,7 +278,7 @@ if [[ ${#failures[@]} = 0 ]]; then
 	mailbody+=$'\nAll input files were processed.'
 else
 	mailbody+=$'\nThere was an error processing the following files:'
-	mailbody+="$(printf '%s\n' ${failures[@]})"
+	mailbody+="$(printf '%s\n' "${failures[@]}")"
 fi
 
 # send actual email
