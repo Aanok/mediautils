@@ -135,7 +135,7 @@ failures=( )
 # put regex in variable. using it directly with quotes would cast it to a string
 regex_w='.*Audio.* ([0-9]+) kb/s'
 regex_dir='.*/.*'
-for infile in "$indir"/**/*.{flac,mp3,wav,mpc,wma,m4a,mp4,ape}; do
+for infile in "$indir"/**/*.{flac,mp3,wav,mpc,wma,m4a,mp4,ape,ogg}; do
 	# only accept file candidate if worthwhile
 	if [[ -z "$ifworthwhile" || ( $(ffprobe "$infile" 2>&1) =~ $regex_w && "${BASH_REMATCH[1]}" > 128 ) ]]; then
 		# get target location relative to $indir
