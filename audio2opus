@@ -123,6 +123,18 @@ else
 	mkdir -p "$outdir"
 fi
 
+# figure out if background execution
+if [[ $(ps -o stat= -p $$) == *+* ]]; then
+	# Running in foreground
+	stdinsrc='/dev/stdin'
+	stdoutdest='/dev/stdout'
+	stderrdest='/dev/stderr'
+else
+	# Running in backgroun
+	stdinsrc='/dev/null'
+	stdoutdest='/dev/null'
+	stderrdest='ffmpeg.log'
+fi
 
 ##### WORK #####
 
@@ -151,7 +163,7 @@ for infile in "$indir"/**/*.{flac,mp3,wav,mpc,wma,m4a,mp4,ape,ogg,aif}; do
 
 		# actual reencode
 		[[ -n "$targetdir" ]] && mkdir -p "$targetdir"
-		if ffmpeg -n -i "$infile" -map 0:a -c:a libopus -vbr on -compression_level 10 -b:a 128000 "$outdir/$outfile"; then
+		if ffmpeg -n -i "$infile" -map 0:a -c:a libopus -vbr on -compression_level 10 -b:a 128000 "$outdir/$outfile" <$stdinsrc >$stdoutdest 2>$stderrdest; then
 			# ffmpeg exited with success, file should have been reencoded
 			successes+=( "$outfile" )
 
