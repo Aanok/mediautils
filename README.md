@@ -16,5 +16,4 @@
 These are all Debian packages. Please note the scripts strictly require Bash.
 
 # TODO
-* Improve --map-args --metadata-args interface of h265
 * h265: add a filter for blackbanding in case of resize
