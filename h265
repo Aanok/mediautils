@@ -67,13 +67,9 @@ program='ffmpeg'
 
 
 # load configuration files
-[[ -f '/etc/h265' ]] && source '/etc/h265'
-if [[ -n "${XDG_CONFIG_HOME}" ]]; then
-    user_config_prefix="${XDG_CONFIG_HOME}"
-else
-    user_config_prefix="${HOME}/.config"
-fi
-[[ -f "${user_config_prefix}/h265" ]] && source "${user_config_prefix}/h265"
+[[ -f '/etc/h265' ]] && . '/etc/h265'
+user_config_prefix="${XDG_CONFIG_HOME:-${HOME}/.config}"
+[[ -f "${user_config_prefix}/h265" ]] && . "${user_config_prefix}/h265"
 
 
 # parse command-line options
