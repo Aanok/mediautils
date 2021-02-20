@@ -1,4 +1,5 @@
 #!/bin/bash
+# audio2opus - batch audio encoding to Opus via ffmpeg
 
 # conveniency function printing help/usage information
 usage() {
@@ -31,11 +32,20 @@ strip_prefix_from_string() {
 	echo "${string:$i}"
 }
 
+# abort in case of SIGINT (see trap below)
+user_abort() {
+	echo "SIGINT caught. Aborting process." >&2
+	exit 2
+}
+
 
 ##### PRELIMINARIES #####
 
 # defaults
 bitrate=128000
+
+# set SIGINT trap
+trap user_abort SIGINT
 
 # parse command-line options
 while :; do
@@ -127,6 +137,19 @@ else
 	mkdir -p "$outdir"
 fi
 
+# figure out if background execution
+if [[ $(ps -o stat= -p $$) == *+* ]]; then
+	# Running in foreground
+	stdinsrc='/dev/stdin'
+	stdoutdest='/dev/stdout'
+	stderrdest='/dev/stderr'
+else
+	# Running in backgroun
+	stdinsrc='/dev/null'
+	stdoutdest='/dev/null'
+	stderrdest='ffmpeg.log'
+fi
+
 
 ##### WORK #####
 
@@ -136,15 +159,18 @@ shopt -s globstar nullglob
 # we'll keep track of which file we manage to reencode and which fail
 successes=( )
 failures=( )
-# compute list of input and output
-for infile in "$indir"/**/*.{flac,mp3,wav,mpc,wma,m4a,mp4,ape}; do
-	# only accept file candidate if worthwhile (TODO: fix grep so we skip sed)
-	if [[ -z "$ifworthwhile" || $(ffprobe "${infile}" 2>&1 | grep Audio: | sed 's/.*, \([0-9]*\) kb\/s.*/\1/') -gt $((bitrate/1000)) ]]; then
+
+# put regex in variable. using it directly with quotes would cast it to a string
+regex_w='.*Audio.* ([0-9]+) kb/s'
+regex_dir='.*/.*'
+for infile in "$indir"/**/*.{flac,mp3,wav,mpc,wma,m4a,mp4,ape,ogg,aif}; do
+	# only accept file candidate if worthwhile
+	if [[ -z "$ifworthwhile" || ( $(ffprobe "$infile" 2>&1) =~ $regex_w && "${BASH_REMATCH[1]}" -gt $((bitrate/1000)) ) ]]; then
 		# get target location relative to $indir
 		outfile=$(strip_prefix_from_string "$indir" "$infile")
 		outfile="${outfile%.*}.opus"
 		# get target folder as relative to $indir so we can recreate it under $outdir
-		if grep -q '/' <<< "$outfile"; then 
+		if [[ "$outfile" =~ $regex_dir ]]; then
 			targetdir="${outfile%/*}"
 		else
 			targetdir=''
@@ -153,7 +179,7 @@ for infile in "$indir"/**/*.{flac,mp3,wav,mpc,wma,m4a,mp4,ape}; do
 
 		# actual reencode
 		[[ -n "$targetdir" ]] && mkdir -p "$targetdir"
-		if ffmpeg -n -i "$infile" -map 0:a -c:a libopus -vbr on -compression_level 10 -b:a "${bitrate}" "$outdir/$outfile"; then
+		if ffmpeg -n -i "$infile" -map 0:a -c:a libopus -vbr on -compression_level 10 -b:a "${bitrate}" "$outdir/$outfile" <$stdinsrc >$stdoutdest 2>$stderrdest; then
 			# ffmpeg exited with success, file should have been reencoded
 			successes+=( "$outfile" )
 

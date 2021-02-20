@@ -1,26 +1,84 @@
 #!/bin/bash
+# cuesplit - split cuesheet into audio files
+# Exit codes:
+# 0 - success
+# 1 - invoked command failed
+# 2 - command not found
+# 3 - user abort via SIGINT
 
-if [ "$#" -ne 2 ]
-then
-	echo 'Usage: cuesplit CUEFILE DATAFILE'
-	exit
+# required to skip "00 - Pregap.flac"
+shopt -s extglob
+
+# conveniency function printing help/usage information
+usage() {
+	echo "Usage:
+	$0 [ --keep-flac | --no-opus ] cuefile datafile
+	$0 --help" >&2
+}
+
+
+# abort in case of SIGINT
+trap user_abort SIGINT
+user_abort() {
+	echo 'User aborted process.'
+	exit 3
+}
+
+
+# parse arguments
+while :; do
+	case "$1" in
+		--keep-flac)
+			keepflac=1
+			;;
+		--no-opus)
+			noopus=1
+			[[ -n "$keepflac" ]] && echo '--no-opus already implies --keep-flac' >&2
+			keepflac=1
+			;;
+		--help)
+			usage
+			exit
+			;;
+		-?*)
+			echo "ERROR: unknown option $1" >&2
+			exit 1
+			;;
+		*)
+			break
+			;;
+	esac
+	shift
+done
+
+# check remaining parameters are enough
+if [[ "$#" -ne 2 ]]; then
+	usage
+	exit 1
 fi
 
+
 # split cue sheet into flac tracks
-mkdir flac
-shnsplit -f "$1" -d flac -t %n\ -\ %t -o flac "$2"
+mkdir -p flac
+command -v shnsplit >/dev/null || { echo 'ERROR: shnsplit not found' >&2; exit 2; }
+shnsplit -f "$1" -d flac -t '%n - %t' -o flac "$2" || exit 1
 
 # tag the tracks
-cuetag "$1" flac/*.flac
+# NB there is discrepancy in how the cuetag executable is called e.g. between Arch and Debian
+command -v cuetag >/dev/null && cuetag_program='cuetag'
+command -v cuetag.sh >/dev/null && cuetag_program='cuetag.sh'
+[[ -z "$cuetag_program" ]] && { echo 'ERROR: cuetag and cuetag.sh not found' >&2; exit 2; }
+"$cuetag_program" "$1" flac/!(00*).flac || exit 1
 
 # reencode in opus
-mkdir opus
-cd flac
-for x in *.flac
-do
-	ffmpeg -i "$x" -c:a libopus -vbr on -compression_level 10 -b:a 128000 "../opus/${x%.*}.opus"
-done
-cd ..
+if [[ -z "$noopus" ]]; then
+	mkdir -p opus
+	for infile in flac/*.flac; do
+		outfile="${infile#flac/}"
+		outfile="${outfile%.*}.opus"
+	 	ffmpeg -i "$infile" -c:a libopus -vbr on -compression_level 10 -b:a 128000 "opus/$outfile" || exit 1
+	done
+fi
 
 # clean up flac tracks
-rm -r flac
+[[ -z "$keepflac" ]] && rm -rf flac
