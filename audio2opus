@@ -3,8 +3,8 @@
 # conveniency function printing help/usage information
 usage() {
 	echo "Usage:
-	$0 [--outdir <output directory> | -o <output directory> ] [ --mail <email address> | -m <email address> ] [ --if-worthwhile | -w ] [ <input directory> ]
-	$0 [--replace | -r ] [ --mail <email address> | -m <email address> ] [ --if-worthwhile | -w ] [ <input directory> ]
+	$0 [--outdir <output directory> | -o <output directory> ] [ --mail <email address> | -m <email address> ] [ -b <bitrate> | --bitrate <bitrate> ] [ --if-worthwhile | -w ] [ <input directory> ]
+	$0 [--replace | -r ] [ --mail <email address> | -m <email address> ] [ -b <bitrate> | --bitrate <bitrate> ] [ --if-worthwhile | -w ] [ <input directory> ]
 	$0 [--help | -h ]"
 }
 
@@ -34,6 +34,9 @@ strip_prefix_from_string() {
 
 ##### PRELIMINARIES #####
 
+# defaults
+bitrate=128000
+
 # parse command-line options
 while :; do
 	case "$1" in
@@ -41,6 +44,17 @@ while :; do
 		# print help
 			usage
 			exit
+			;;
+		-b|--bitrate)
+		# set bitrate
+			if [[ -n "$2" ]]; then
+				bitrate="$2"
+				bitrate_kbps=$((bitrate/1000))
+				shift
+			else
+				missing_arg_error "--bitrate"
+				exit 1
+			fi
 			;;
 		-o|--outdir)
 		# set outdir
@@ -66,7 +80,7 @@ while :; do
 			replace=1
 			;;
 		-w|--if-worthwhile)
-		# program will process files only if their (average) birate is above 128kbps
+		# program will process files only if their (average) bitrate is above reencode bitrate
 			ifworthwhile=1
 			;;
 		-m|--mail)
@@ -125,7 +139,7 @@ failures=( )
 # compute list of input and output
 for infile in "$indir"/**/*.{flac,mp3,wav,mpc,wma,m4a,mp4,ape}; do
 	# only accept file candidate if worthwhile (TODO: fix grep so we skip sed)
-	if [[ -z "$ifworthwhile" || $(ffprobe "$x" 2>&1 | grep Audio: | sed 's/.*, \([0-9]*\) kb\/s.*/\1/') > 128 ]]; then
+	if [[ -z "$ifworthwhile" || $(ffprobe "${infile}" 2>&1 | grep Audio: | sed 's/.*, \([0-9]*\) kb\/s.*/\1/') -gt $((bitrate/1000)) ]]; then
 		# get target location relative to $indir
 		outfile=$(strip_prefix_from_string "$indir" "$infile")
 		outfile="${outfile%.*}.opus"
@@ -139,7 +153,7 @@ for infile in "$indir"/**/*.{flac,mp3,wav,mpc,wma,m4a,mp4,ape}; do
 
 		# actual reencode
 		[[ -n "$targetdir" ]] && mkdir -p "$targetdir"
-		if ffmpeg -n -i "$infile" -map 0:a -c:a libopus -vbr on -compression_level 10 -b:a 128000 "$outdir/$outfile"; then
+		if ffmpeg -n -i "$infile" -map 0:a -c:a libopus -vbr on -compression_level 10 -b:a "${bitrate}" "$outdir/$outfile"; then
 			# ffmpeg exited with success, file should have been reencoded
 			successes+=( "$outfile" )
 
