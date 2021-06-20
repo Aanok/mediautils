@@ -137,7 +137,7 @@ while [[ -n "$1" ]]; do
         ;;
     --downmix-stereo)
     # set downmix of 5.1 surround channels to stereo
-        downmix=(-ac 2 -af 'pan=stereo|FL=FC+0.30*FL+0.30*BL|FR=FC+0.30*FR+0.30*BR')
+	downmix=( -af 'pan=stereo|FL=0.5*FC+0.707*FL+0.707*BL+0.5*LFE|FR=0.5*FC+0.707*FR+0.707*BR+0.5*LFE,volume=1.66' )
         ;;
     --outdir)
     # set output directory
