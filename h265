@@ -264,7 +264,7 @@ successes=()
 failures=()
 for infile in *.{mkv,mp4,avi,m2ts}; do
     outfile="${infile%.*}.mkv"
-    args=(-n -i "$infile" "${mapargs[@]}" "${metadataargs[@]}" "${venc[@]}" "${videofilter[@]}" "${vqual_arg[@]}" "${vqual[@]}" -c:a "${audiocodec[@]}" -c:s copy "${downmix[@]}" "${miscargs[@]}" "$outdir/$outfile")
+    args=(-n -i "$infile" "${mapargs[@]}" "${metadataargs[@]}" "-metadata source='${infile}'" "${venc[@]}" "${videofilter[@]}" "${vqual_arg[@]}" "${vqual[@]}" -c:a "${audiocodec[@]}" -c:s copy "${downmix[@]}" "${miscargs[@]}" "$outdir/$outfile")
 
     if "${program[@]}" "${args[@]}" <$stdinsrc >$stdoutdest 2>$stderrdest; then
     # ffmpeg exited with success, file should have been reencoded
